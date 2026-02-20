@@ -1,0 +1,19 @@
+.DS_Store
+.build/
+.swiftpm/
+DerivedData/
+
+# Local app bundles
+*.app
+
+# Local logs/temp
+*.log
+/tmp/
+
+# Editor
+.vscode/
+.idea/
+
+# Python caches (scripts)
+__pycache__/
+*.pyc
