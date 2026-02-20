@@ -80,20 +80,6 @@ struct RecordingHUD: View {
                 .frame(minHeight: notchHeight)
                 .fixedSize(horizontal: false, vertical: true)
                 .clipShape(DynamicIslandShape(cornerRadius: isExpanded ? 22 : 17))
-                .overlay {
-                    DynamicIslandShape(cornerRadius: isExpanded ? 22 : 17)
-                        .stroke(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.14),
-                                    Color.white.opacity(0.03)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ),
-                            lineWidth: 1
-                        )
-                }
                 .shadow(color: .black.opacity(isExpanded ? 0.42 : 0), radius: 18, y: 8)
                 .scaleEffect(hasAppeared ? 1.0 : 0.985, anchor: .top)
                 .offset(y: hasAppeared ? 0 : -3)
@@ -224,11 +210,7 @@ struct RecordingHUD: View {
                 .padding(.vertical, 12)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.white.opacity(0.02))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                        .fill(Color.white.opacity(0.03))
                 )
                 .padding(.horizontal, 16)
             }
