@@ -176,6 +176,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let collapsedFrame = hudFrame(for: collapsedHudSize)
             
             // Stage 1: render compact notch before expansion.
+            hudModel.showContent = false
             hudModel.state = .idle
             hudModel.transcript = ""
             hudModel.audioLevel = 0
@@ -204,9 +205,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     settle.duration = 0.14
                     settle.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                     window.animator().setFrame(targetFrame, display: true)
+                } completionHandler: { [weak self] in
+                    Task { @MainActor in
+                        guard let self = self else { return }
+                        withAnimation(.easeOut(duration: 0.12)) {
+                            self.hudModel.showContent = true
+                        }
+                    }
                 }
             }
         } else {
+            if !hudModel.showContent {
+                hudModel.showContent = true
+            }
             updateHUDContent(animated: true)
             window.orderFrontRegardless()
         }
@@ -218,6 +229,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let collapsedFrame = hudFrame(for: collapsedHudSize)
         
         // Collapse visual content into notch before dismissing.
+        hudModel.showContent = false
         hudModel.state = .idle
         hudModel.transcript = ""
         hudModel.audioLevel = 0

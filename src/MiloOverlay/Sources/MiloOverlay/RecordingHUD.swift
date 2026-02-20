@@ -19,6 +19,7 @@ final class HUDModel: ObservableObject {
     @Published var state: MiloState = .idle
     @Published var transcript: String = ""
     @Published var audioLevel: Float = 0
+    @Published var showContent: Bool = true
 }
 
 // MARK: - The Dynamic Island HUD
@@ -71,6 +72,7 @@ struct RecordingHUD: View {
                 
                 islandContent
                     .id(stateKey)
+                    .opacity(model.showContent || state == .idle ? 1 : 0)
                     .transition(.asymmetric(
                         insertion: .opacity.combined(with: .scale(scale: 0.98, anchor: .top)),
                         removal: .opacity
@@ -79,7 +81,7 @@ struct RecordingHUD: View {
                 .frame(width: isExpanded ? expandedWidth : notchWidth)
                 .frame(minHeight: notchHeight)
                 .fixedSize(horizontal: false, vertical: true)
-                .clipShape(DynamicIslandShape(cornerRadius: isExpanded ? 22 : 17))
+                .clipShape(IslandShellShape(bottomRadius: isExpanded ? 24 : 17))
                 .shadow(color: .black.opacity(isExpanded ? 0.42 : 0), radius: 18, y: 8)
                 .scaleEffect(hasAppeared ? 1.0 : 0.985, anchor: .top)
                 .offset(y: hasAppeared ? 0 : -3)
@@ -95,6 +97,7 @@ struct RecordingHUD: View {
         }
         .animation(.interactiveSpring(response: 0.38, dampingFraction: 0.86, blendDuration: 0.2), value: isExpanded)
         .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.9, blendDuration: 0.12), value: stateKey)
+        .animation(.easeOut(duration: 0.12), value: model.showContent)
     }
     
     @ViewBuilder
@@ -219,19 +222,35 @@ struct RecordingHUD: View {
     }
 }
 
-// MARK: - Dynamic Island Shape
+// MARK: - Island Shell Shape
 
-struct DynamicIslandShape: Shape {
-    var cornerRadius: CGFloat
+struct IslandShellShape: Shape {
+    var bottomRadius: CGFloat
     
     var animatableData: CGFloat {
-        get { cornerRadius }
-        set { cornerRadius = newValue }
+        get { bottomRadius }
+        set { bottomRadius = newValue }
     }
     
     func path(in rect: CGRect) -> Path {
-        let r = min(cornerRadius, rect.height / 2, rect.width / 2)
-        return RoundedRectangle(cornerRadius: r, style: .continuous).path(in: rect)
+        let r = min(bottomRadius, rect.height / 2, rect.width / 2)
+        var path = Path()
+        
+        // Flat top edge so the overlay merges with the notch/screen edge.
+        path.move(to: CGPoint(x: 0, y: 0))
+        path.addLine(to: CGPoint(x: rect.width, y: 0))
+        path.addLine(to: CGPoint(x: rect.width, y: rect.height - r))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.width - r, y: rect.height),
+            control: CGPoint(x: rect.width, y: rect.height)
+        )
+        path.addLine(to: CGPoint(x: r, y: rect.height))
+        path.addQuadCurve(
+            to: CGPoint(x: 0, y: rect.height - r),
+            control: CGPoint(x: 0, y: rect.height)
+        )
+        path.closeSubpath()
+        return path
     }
 }
 
