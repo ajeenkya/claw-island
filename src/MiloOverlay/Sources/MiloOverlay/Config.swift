@@ -42,7 +42,7 @@ struct MiloConfig: Codable {
         ttsEngine: "system",
         ttsVoice: "Samantha (English (US))",
         kokoroVoice: "af_heart",
-        kokoroSpeed: 1.0,
+        kokoroSpeed: 1.15,
         kokoroLangCode: "a",
         kokoroPythonPath: nil,
         kokoroScriptPath: nil,
@@ -52,7 +52,7 @@ struct MiloConfig: Codable {
         model: "openclaw",
         conversationBufferSize: 10,
         agentId: "main",
-        maxTokens: 2048
+        maxTokens: 512
     )
     
     enum CodingKeys: String, CodingKey {

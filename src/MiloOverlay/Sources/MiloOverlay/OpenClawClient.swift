@@ -35,11 +35,11 @@ class OpenClawClient {
     
     /// Stream a message to OpenClaw, yielding sentences as they complete.
     /// Returns an AsyncStream of StreamEvents — each `.sentence` is ready for immediate TTS.
-    func streamMessage(text: String, screenshotPath: String?) -> AsyncStream<StreamEvent> {
+    func streamMessage(text: String, screenshotPath: String?, runtimeContext: String?) -> AsyncStream<StreamEvent> {
         AsyncStream { continuation in
             Task {
                 do {
-                    let request = try buildRequest(text: text, screenshotPath: screenshotPath, stream: true)
+                    let request = try buildRequest(text: text, screenshotPath: screenshotPath, runtimeContext: runtimeContext, stream: true)
                     
                     miloLog("📡 Streaming to OpenClaw (model: \(config.model)): \(text)")
                     
@@ -114,8 +114,8 @@ class OpenClawClient {
     // MARK: - Non-streaming fallback
     
     /// Send a non-streaming message using the same config-driven routing as streaming.
-    func sendMessage(text: String, screenshotPath: String?) async throws -> String {
-        let request = try buildRequest(text: text, screenshotPath: screenshotPath, stream: false)
+    func sendMessage(text: String, screenshotPath: String?, runtimeContext: String?) async throws -> String {
+        let request = try buildRequest(text: text, screenshotPath: screenshotPath, runtimeContext: runtimeContext, stream: false)
         
         miloLog("📡 Sending to OpenClaw (non-streaming): \(text)")
         let (data, response) = try await session.data(for: request)
@@ -182,7 +182,7 @@ class OpenClawClient {
     
     // MARK: - Request Building
     
-    private func buildRequest(text: String, screenshotPath: String?, stream: Bool) throws -> URLRequest {
+    private func buildRequest(text: String, screenshotPath: String?, runtimeContext: String?, stream: Bool) throws -> URLRequest {
         let urlString = "\(config.gatewayUrl)/v1/chat/completions"
         guard let url = URL(string: urlString) else {
             throw OpenClawError.invalidURL
@@ -196,6 +196,15 @@ class OpenClawClient {
         }
         
         var content: [[String: Any]] = [["type": "text", "text": text]]
+        if let runtimeContext {
+            let trimmedContext = runtimeContext.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedContext.isEmpty {
+                content.append([
+                    "type": "text",
+                    "text": "Desktop context (metadata, not user speech): \(trimmedContext)"
+                ])
+            }
+        }
         if let path = screenshotPath,
            let imageData = FileManager.default.contents(atPath: path) {
             let base64 = imageData.base64EncodedString()

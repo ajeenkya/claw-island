@@ -28,7 +28,6 @@ struct RecordingHUD: View {
     @ObservedObject var model: HUDModel
     
     @State private var glowPulse = false
-    @State private var hasAppeared = false
     
     // Geometry for the notch expansion
     private let notchWidth: CGFloat = 190
@@ -38,15 +37,16 @@ struct RecordingHUD: View {
     private var transcript: String { model.transcript }
     private var audioLevel: Float { model.audioLevel }
     private var isExpanded: Bool { state != .idle }
-    private var stateKey: String { state.description }
     private var expandedWidth: CGFloat {
         switch state {
-        case .recording: return 560
-        case .processing: return 540
-        case .speaking: return 640
+        case .recording: return 640
+        case .processing: return 620
+        case .speaking: return 860
         case .idle: return notchWidth
         }
     }
+    
+    private var shellRadius: CGFloat { isExpanded ? 22 : 17 }
     
     private var accentColor: Color {
         switch state {
@@ -71,33 +71,22 @@ struct RecordingHUD: View {
                 )
                 
                 islandContent
-                    .id(stateKey)
                     .opacity(model.showContent || state == .idle ? 1 : 0)
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.98, anchor: .top)),
-                        removal: .opacity
-                    ))
             }
                 .frame(width: isExpanded ? expandedWidth : notchWidth)
                 .frame(minHeight: notchHeight)
                 .fixedSize(horizontal: false, vertical: true)
-                .clipShape(IslandShellShape(bottomRadius: isExpanded ? 24 : 17))
-                .shadow(color: .black.opacity(isExpanded ? 0.42 : 0), radius: 18, y: 8)
-                .scaleEffect(hasAppeared ? 1.0 : 0.985, anchor: .top)
-                .offset(y: hasAppeared ? 0 : -3)
-                .opacity(hasAppeared ? 1.0 : 0.01)
+                .clipShape(IslandShellShape(bottomRadius: shellRadius))
+                .shadow(color: .black.opacity(isExpanded ? 0.44 : 0.22), radius: isExpanded ? 20 : 10, y: isExpanded ? 10 : 5)
+                .compositingGroup()
         }
         .onAppear {
-            withAnimation(.spring(response: 0.36, dampingFraction: 0.74)) {
-                hasAppeared = true
-            }
             withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
                 glowPulse = true
             }
         }
-        .animation(.interactiveSpring(response: 0.38, dampingFraction: 0.86, blendDuration: 0.2), value: isExpanded)
-        .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.9, blendDuration: 0.12), value: stateKey)
-        .animation(.easeOut(duration: 0.12), value: model.showContent)
+        .animation(.interactiveSpring(response: 0.42, dampingFraction: 0.86, blendDuration: 0.2), value: isExpanded)
+        .animation(.easeOut(duration: 0.16), value: model.showContent)
     }
     
     @ViewBuilder
@@ -121,7 +110,7 @@ struct RecordingHUD: View {
                     
                     Text("Listening")
                         .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundColor(OC.textSecondary)
+                        .foregroundColor(OC.textPrimary.opacity(0.9))
                     
                     Spacer()
                     
@@ -129,7 +118,7 @@ struct RecordingHUD: View {
                     MiniLevelDots(level: audioLevel)
                 }
                 .padding(.top, 12)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 22)
                 
                 // Audio visualizer
                 AudioVisualizerView(level: audioLevel)
@@ -142,9 +131,9 @@ struct RecordingHUD: View {
                         .font(.system(size: 13, weight: .regular, design: .rounded))
                         .foregroundColor(OC.textPrimary.opacity(0.9))
                         .multilineTextAlignment(.center)
+                        .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 20)
-                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        .padding(.horizontal, 22)
                 }
             }
             .padding(.bottom, 16)
@@ -157,22 +146,23 @@ struct RecordingHUD: View {
                     
                     Text("Thinking")
                         .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundColor(OC.textSecondary)
+                        .foregroundColor(OC.textPrimary.opacity(0.88))
                     
                     Spacer()
                     
                     BouncingDots()
                 }
                 .padding(.top, 12)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 22)
                 
                 if !transcript.isEmpty {
                     Text(transcript)
                         .font(.system(size: 12, weight: .regular, design: .rounded))
                         .foregroundColor(OC.textMuted)
                         .multilineTextAlignment(.center)
+                        .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, 22)
                 }
             }
             .padding(.bottom, 16)
@@ -185,37 +175,35 @@ struct RecordingHUD: View {
                     
                     Text("Milo")
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundColor(OC.teal)
+                        .foregroundColor(OC.textPrimary.opacity(0.95))
                     
                     Spacer()
                     
                     Text("hotkey to stop")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundColor(OC.textMuted)
                 }
                 .padding(.top, 12)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 22)
                 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Now speaking")
                         .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .foregroundColor(OC.textMuted)
+                        .foregroundColor(OC.textMuted.opacity(0.9))
                         .textCase(.uppercase)
                     
                     Text(response.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "..." : response)
-                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
                         .foregroundColor(OC.textPrimary.opacity(0.96))
                         .multilineTextAlignment(.leading)
+                        .lineLimit(5)
+                        .truncationMode(.tail)
+                        .minimumScaleFactor(0.9)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.white.opacity(0.03))
-                )
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 22)
+                .padding(.vertical, 4)
             }
             .padding(.bottom, 16)
         }
@@ -269,38 +257,50 @@ private struct DynamicBackdrop: View {
             ZStack {
                 OC.notchBlack
                 
-                // Subtle neutral sheen to avoid a flat rectangle while matching notch black.
-                RadialGradient(
-                    colors: [
-                        Color.white.opacity(isExpanded ? (glowPulse ? 0.05 : 0.035) : 0.015),
-                        .clear
-                    ],
-                    center: .top,
-                    startRadius: 2,
-                    endRadius: max(width, height) * 0.7
-                )
+                // Keep the top zone pure black so the hardware notch and overlay merge.
+                Rectangle()
+                    .fill(Color.black)
+                    .frame(height: min(height * 0.36, 32))
+                    .frame(maxHeight: .infinity, alignment: .top)
                 
                 LinearGradient(
-                    colors: [.clear, Color.black.opacity(0.14)],
+                    colors: [
+                        Color.white.opacity(isExpanded ? 0.024 : 0.01),
+                        Color.black.opacity(isExpanded ? 0.14 : 0.06)
+                    ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
                 
-                // Thin accent thread instead of whole-surface tint.
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                .clear,
-                                accentColor.opacity(isExpanded ? (glowPulse ? 0.20 : 0.12) : 0.06),
-                                .clear
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
+                if isExpanded {
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    .clear,
+                                    accentColor.opacity(glowPulse ? 0.12 : 0.07),
+                                    .clear
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
                         )
+                        .frame(width: min(width * 0.4, 280), height: 1)
+                        .offset(y: 9)
+                }
+                
+                if isExpanded {
+                    RadialGradient(
+                        colors: [
+                            accentColor.opacity(glowPulse ? 0.035 : 0.02),
+                            .clear
+                        ],
+                        center: .bottom,
+                        startRadius: 6,
+                        endRadius: width * 0.5
                     )
-                    .frame(width: width * 0.38, height: 1)
-                    .offset(y: isExpanded ? 9 : 11)
+                    .offset(y: height * 0.14)
+                }
             }
         }
     }

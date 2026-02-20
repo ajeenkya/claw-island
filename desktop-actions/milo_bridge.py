@@ -1,0 +1,237 @@
+#!/usr/bin/env python3
+"""Minimal desktop text bridge for Milo/OpenClaw workflows.
+
+Commands:
+- get_context: return frontmost app and window title metadata.
+- get_selection: copy current selection and return it (clipboard-safe best effort).
+- replace_selection: paste provided text over current selection.
+- insert_text: paste provided text at cursor.
+"""
+
+import argparse
+import json
+import subprocess
+import sys
+import time
+import uuid
+from typing import Any, Dict, Optional
+
+
+def run_cmd(cmd: list[str], input_text: Optional[str] = None) -> str:
+    proc = subprocess.run(
+        cmd,
+        input=input_text,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        stderr = proc.stderr.strip() or "unknown error"
+        raise RuntimeError(f"{' '.join(cmd)} failed: {stderr}")
+    return proc.stdout
+
+
+def run_osascript(script: str) -> str:
+    return run_cmd(["/usr/bin/osascript", "-e", script]).strip()
+
+
+def get_clipboard_text() -> str:
+    return run_cmd(["/usr/bin/pbpaste"])
+
+
+def set_clipboard_text(value: str) -> None:
+    run_cmd(["/usr/bin/pbcopy"], input_text=value)
+
+
+def command_keystroke(key: str) -> None:
+    # Accessibility permission is required for System Events keystrokes.
+    script = f'tell application "System Events" to keystroke "{key}" using command down'
+    run_osascript(script)
+
+
+def get_frontmost_context() -> Dict[str, str]:
+    app_name = ""
+    window_title = ""
+
+    try:
+        app_name = run_osascript(
+            'tell application "System Events" to get name of first application process whose frontmost is true'
+        )
+    except Exception:
+        app_name = ""
+
+    try:
+        window_title = run_osascript(
+            'tell application "System Events" to tell (first application process whose frontmost is true) to if (count of windows) > 0 then get name of front window'
+        )
+    except Exception:
+        window_title = ""
+
+    return {
+        "frontmostApp": app_name,
+        "windowTitle": window_title,
+    }
+
+
+def with_preserved_clipboard_text(func):
+    original = ""
+    had_original = False
+    try:
+        original = get_clipboard_text()
+        had_original = True
+    except Exception:
+        # Keep going even if clipboard read fails.
+        original = ""
+
+    try:
+        return func()
+    finally:
+        if had_original:
+            try:
+                set_clipboard_text(original)
+            except Exception:
+                pass
+
+
+def cmd_get_context(args: argparse.Namespace) -> Dict[str, Any]:
+    context = get_frontmost_context()
+    return {
+        "ok": True,
+        "command": "get_context",
+        "context": context,
+    }
+
+
+def cmd_get_selection(args: argparse.Namespace) -> Dict[str, Any]:
+    def action() -> Dict[str, Any]:
+        marker = f"__MILO_SELECTION_MARKER_{uuid.uuid4()}__"
+        set_clipboard_text(marker)
+        time.sleep(0.03)
+
+        command_keystroke("c")
+        time.sleep(max(args.delay_ms, 50) / 1000.0)
+
+        selected = get_clipboard_text()
+        if selected == marker:
+            selected = ""
+
+        context = get_frontmost_context()
+        return {
+            "ok": True,
+            "command": "get_selection",
+            "selection": selected,
+            "hasSelection": bool(selected.strip()),
+            "context": context,
+        }
+
+    return with_preserved_clipboard_text(action)
+
+
+def read_text_payload(args: argparse.Namespace) -> str:
+    if args.stdin:
+        return sys.stdin.read()
+    if args.file:
+        with open(args.file, "r", encoding="utf-8") as handle:
+            return handle.read()
+    return args.text or ""
+
+
+def paste_text(text: str) -> None:
+    set_clipboard_text(text)
+    time.sleep(0.03)
+    command_keystroke("v")
+    time.sleep(0.05)
+
+
+def cmd_replace_selection(args: argparse.Namespace) -> Dict[str, Any]:
+    text = read_text_payload(args)
+    if not text:
+        raise RuntimeError("replace_selection requires non-empty text")
+
+    def action() -> Dict[str, Any]:
+        paste_text(text)
+        return {
+            "ok": True,
+            "command": "replace_selection",
+            "chars": len(text),
+            "context": get_frontmost_context(),
+        }
+
+    return with_preserved_clipboard_text(action)
+
+
+def cmd_insert_text(args: argparse.Namespace) -> Dict[str, Any]:
+    text = read_text_payload(args)
+    if not text:
+        raise RuntimeError("insert_text requires non-empty text")
+
+    def action() -> Dict[str, Any]:
+        paste_text(text)
+        return {
+            "ok": True,
+            "command": "insert_text",
+            "chars": len(text),
+            "context": get_frontmost_context(),
+        }
+
+    return with_preserved_clipboard_text(action)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Milo desktop text bridge")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    p_context = subparsers.add_parser("get_context", help="Frontmost app/window context")
+    p_context.add_argument("--json", action="store_true", help="Emit JSON")
+    p_context.set_defaults(handler=cmd_get_context)
+
+    p_sel = subparsers.add_parser("get_selection", help="Get selected text")
+    p_sel.add_argument("--delay-ms", type=int, default=120, help="Delay after Cmd+C")
+    p_sel.add_argument("--json", action="store_true", help="Emit JSON")
+    p_sel.set_defaults(handler=cmd_get_selection)
+
+    for name, help_text, handler in [
+        ("replace_selection", "Replace current selection", cmd_replace_selection),
+        ("insert_text", "Insert text at cursor", cmd_insert_text),
+    ]:
+        p = subparsers.add_parser(name, help=help_text)
+        p.add_argument("--text", type=str, default="", help="Text payload")
+        p.add_argument("--file", type=str, default="", help="Read payload from file")
+        p.add_argument("--stdin", action="store_true", help="Read payload from stdin")
+        p.add_argument("--json", action="store_true", help="Emit JSON")
+        p.set_defaults(handler=handler)
+
+    return parser
+
+
+def emit(result: Dict[str, Any], as_json: bool) -> None:
+    if as_json:
+        print(json.dumps(result, ensure_ascii=True))
+    else:
+        if "selection" in result:
+            print(result.get("selection", ""))
+        else:
+            print("ok")
+
+
+def main() -> int:
+    parser = build_parser()
+    args = parser.parse_args()
+    as_json = bool(getattr(args, "json", False))
+
+    try:
+        result = args.handler(args)
+        emit(result, as_json)
+        return 0
+    except Exception as exc:
+        payload = {
+            "ok": False,
+            "error": str(exc),
+            "command": getattr(args, "command", "unknown"),
+        }
+        emit(payload, True)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

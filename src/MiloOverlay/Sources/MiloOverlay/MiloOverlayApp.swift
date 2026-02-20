@@ -55,6 +55,12 @@ enum MiloState: Equatable, CustomStringConvertible {
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
+    private struct PendingSelectionRewrite {
+        let original: String
+        let rewritten: String
+        let request: String
+    }
+    
     private var statusItem: NSStatusItem!
     private var hotkeyManager = HotkeyManager()
     private var audioRecorder = AudioRecorder()
@@ -72,10 +78,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let hudModel = HUDModel()
     private let collapsedHudSize = NSSize(width: 190, height: 34)
     private var lastMeasuredHUDSize = NSSize(width: 0, height: 0)
+    private var shouldStageHUDTransition = false
+    private let hudExpandDuration: TimeInterval = 0.24
+    private let hudSettleDuration: TimeInterval = 0.17
+    private let hudResizeDuration: TimeInterval = 0.22
+    private let hudContentFadeDuration: TimeInterval = 0.14
+    private var openedAccessibilitySettingsThisLaunch = false
     private var transcript: String = ""
+    private var pendingSelectionRewrite: PendingSelectionRewrite?
+    private let bridgeScriptPath = NSHomeDirectory() + "/.openclaw/workspace/skills/milo-desktop-actions/scripts/milo_bridge.py"
+    private var committedLiveTranscript: String = ""
+    private var currentLivePartial: String = ""
+    private var lastLivePartialAt: Date?
+    private let livePauseResetThreshold: TimeInterval = 0.65
     
     private var state: MiloState = .idle {
         didSet {
+            if oldValue.description != state.description, oldValue != .idle, state != .idle {
+                shouldStageHUDTransition = true
+            }
             updateMenuBarIcon()
             updateHUD()
         }
@@ -109,7 +130,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             miloLog("✅ Accessibility authorized")
         } else {
             miloLog("⚠️ Accessibility not granted — global hotkey will not work until enabled")
+            openAccessibilitySettingsIfNeeded()
         }
+    }
+    
+    private func openAccessibilitySettingsIfNeeded() {
+        guard !openedAccessibilitySettingsThisLaunch else { return }
+        openedAccessibilitySettingsThisLaunch = true
+        
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else { return }
+        NSWorkspace.shared.open(url)
+        miloLog("↗️ Opened System Settings → Privacy & Security → Accessibility")
     }
 
     // MARK: - Menu Bar
@@ -173,6 +204,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let hostView = hudHostView else { return }
         
         if !window.isVisible {
+            shouldStageHUDTransition = false
             let collapsedFrame = hudFrame(for: collapsedHudSize)
             
             // Stage 1: render compact notch before expansion.
@@ -197,19 +229,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             )
             
             NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.19
+                ctx.duration = hudExpandDuration
                 ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
                 window.animator().setFrame(overshootFrame, display: true)
             } completionHandler: {
                 NSAnimationContext.runAnimationGroup { settle in
-                    settle.duration = 0.14
+                    settle.duration = self.hudSettleDuration
                     settle.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                     window.animator().setFrame(targetFrame, display: true)
                 } completionHandler: { [weak self] in
                     Task { @MainActor in
                         guard let self = self else { return }
-                        withAnimation(.easeOut(duration: 0.12)) {
-                            self.hudModel.showContent = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+                            withAnimation(.easeOut(duration: self.hudContentFadeDuration)) {
+                                self.hudModel.showContent = true
+                            }
                         }
                     }
                 }
@@ -251,6 +285,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func updateHUD() {
         switch state {
         case .idle:
+            shouldStageHUDTransition = false
             hideHUD()
             transcript = ""
         case .recording, .processing, .speaking:
@@ -272,10 +307,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let targetFrame = hudFrame(for: measuredSize)
         
         if animated, window.isVisible {
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.18
-                ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                window.animator().setFrame(targetFrame, display: true)
+            let shouldStageTransitionNow = shouldStageHUDTransition
+            shouldStageHUDTransition = false
+            
+            if shouldStageTransitionNow && hudModel.showContent {
+                withAnimation(.easeOut(duration: 0.08)) {
+                    hudModel.showContent = false
+                }
+                
+                NSAnimationContext.runAnimationGroup { ctx in
+                    ctx.duration = hudResizeDuration
+                    ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                    window.animator().setFrame(targetFrame, display: true)
+                } completionHandler: { [weak self] in
+                    Task { @MainActor in
+                        guard let self = self else { return }
+                        withAnimation(.easeOut(duration: self.hudContentFadeDuration)) {
+                            self.hudModel.showContent = true
+                        }
+                    }
+                }
+            } else {
+                NSAnimationContext.runAnimationGroup { ctx in
+                    ctx.duration = hudResizeDuration
+                    ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                    window.animator().setFrame(targetFrame, display: true)
+                }
             }
         } else {
             window.setFrame(targetFrame, display: true)
@@ -288,10 +345,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         let screenFrame = screen.frame
-        let x = screenFrame.midX - size.width / 2
-        let y = screenFrame.maxY - size.height
+        let scale = max(screen.backingScaleFactor, 1)
+        let width = ceil(size.width * scale) / scale
+        let height = ceil(size.height * scale) / scale
+        let x = round((screenFrame.midX - width / 2) * scale) / scale
+        // Use ceil so the top edge never lands below the screen edge due to fractional rounding.
+        let y = ceil((screenFrame.maxY - height) * scale) / scale
         
-        return NSRect(x: x, y: y, width: size.width, height: size.height)
+        return NSRect(x: x, y: y, width: width, height: height)
     }
     
     private func applyHUDModel() {
@@ -303,7 +364,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func measuredHUDSize(hostView: NSHostingView<RecordingHUD>) -> NSSize {
         hostView.layoutSubtreeIfNeeded()
         let fittingSize = hostView.fittingSize
-        return NSSize(width: max(fittingSize.width, 220), height: max(fittingSize.height, 60))
+        return NSSize(width: max(fittingSize.width, 260), height: max(fittingSize.height, 60))
     }
 
     // MARK: - Hotkey
@@ -336,6 +397,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func startRecording() {
         do {
             transcript = ""
+            committedLiveTranscript = ""
+            currentLivePartial = ""
+            lastLivePartialAt = nil
             try audioRecorder.startRecording()
             liveTranscriber.start()
             state = .recording
@@ -348,7 +412,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     // Feed live transcript to HUD
                     let partial = self.liveTranscriber.partialText
                     if !partial.isEmpty {
-                        self.transcript = partial
+                        self.ingestLivePartial(partial)
                     }
                     self.updateHUDContent(animated: false)
                 }
@@ -375,7 +439,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Stop both recorders
         let _ = audioRecorder.stopRecording()
-        let liveText = liveTranscriber.stop()
+        let liveText = finalizeLiveTranscript(with: liveTranscriber.stop())
         
         state = .processing
         miloLog("⏳ Processing...")
@@ -388,6 +452,386 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Pipeline
 
     private var ttsEngine: TTSEngine?
+
+    private func ingestLivePartial(_ rawPartial: String) {
+        let partial = rawPartial.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !partial.isEmpty else { return }
+        
+        let now = Date()
+        let gap = now.timeIntervalSince(lastLivePartialAt ?? now)
+        
+        if shouldStartNewLiveSegment(current: currentLivePartial, candidate: partial, gap: gap) {
+            committedLiveTranscript = appendSegment(committedLiveTranscript, segment: currentLivePartial)
+            currentLivePartial = partial
+        } else {
+            currentLivePartial = reconcileCurrentSegment(current: currentLivePartial, candidate: partial)
+        }
+        
+        lastLivePartialAt = now
+        transcript = mergeCommittedAndCurrent(committedLiveTranscript, current: currentLivePartial)
+    }
+    
+    private func finalizeLiveTranscript(with rawFinal: String) -> String {
+        let finalCandidate = rawFinal.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !finalCandidate.isEmpty {
+            if shouldStartNewLiveSegment(current: currentLivePartial, candidate: finalCandidate, gap: livePauseResetThreshold) {
+                committedLiveTranscript = appendSegment(committedLiveTranscript, segment: currentLivePartial)
+                currentLivePartial = finalCandidate
+            } else {
+                currentLivePartial = reconcileCurrentSegment(current: currentLivePartial, candidate: finalCandidate)
+            }
+        }
+        
+        let merged = mergeCommittedAndCurrent(committedLiveTranscript, current: currentLivePartial)
+        return merged.isEmpty ? finalCandidate : merged
+    }
+    
+    private func shouldStartNewLiveSegment(current: String, candidate: String, gap: TimeInterval) -> Bool {
+        let existing = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        let incoming = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !existing.isEmpty, !incoming.isEmpty else { return false }
+        
+        let existingLower = existing.lowercased()
+        let incomingLower = incoming.lowercased()
+        
+        if existingLower == incomingLower { return false }
+        if incomingLower.hasPrefix(existingLower) || existingLower.hasPrefix(incomingLower) { return false }
+        if sharedPrefixWordCount(existingLower, incomingLower) >= 2 { return false }
+        if suffixPrefixWordOverlap(existingLower, incomingLower) > 0 { return false }
+        
+        if gap >= livePauseResetThreshold { return true }
+        if wordCount(incomingLower) <= 3 && wordCount(existingLower) >= 3 { return true }
+        
+        return false
+    }
+    
+    private func reconcileCurrentSegment(current: String, candidate: String) -> String {
+        let existing = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        let incoming = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !incoming.isEmpty else { return existing }
+        guard !existing.isEmpty else { return incoming }
+        
+        let existingLower = existing.lowercased()
+        let incomingLower = incoming.lowercased()
+        
+        if incomingLower == existingLower { return existing }
+        if incomingLower.hasPrefix(existingLower) || existingLower.hasPrefix(incomingLower) { return incoming }
+        if sharedPrefixWordCount(existingLower, incomingLower) >= 2 { return incoming }
+        
+        let overlap = suffixPrefixWordOverlap(existingLower, incomingLower)
+        if overlap > 0 {
+            let existingWords = words(existing)
+            let incomingWords = words(incoming)
+            let suffix = incomingWords.dropFirst(overlap).joined(separator: " ")
+            if suffix.isEmpty { return existing }
+            return (existingWords + suffix.split(whereSeparator: \.isWhitespace).map(String.init)).joined(separator: " ")
+        }
+        
+        return incoming
+    }
+    
+    private func appendSegment(_ base: String, segment: String) -> String {
+        let committed = base.trimmingCharacters(in: .whitespacesAndNewlines)
+        let incoming = segment.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !incoming.isEmpty else { return committed }
+        guard !committed.isEmpty else { return incoming }
+        
+        let committedLower = committed.lowercased()
+        let incomingLower = incoming.lowercased()
+        if committedLower.hasSuffix(incomingLower) || committedLower.contains(incomingLower) {
+            return committed
+        }
+        
+        let overlap = suffixPrefixWordOverlap(committedLower, incomingLower)
+        if overlap > 0 {
+            let incomingWords = words(incoming)
+            let tail = incomingWords.dropFirst(overlap).joined(separator: " ")
+            if tail.isEmpty { return committed }
+            return committed + " " + tail
+        }
+        
+        return committed + " " + incoming
+    }
+    
+    private func mergeCommittedAndCurrent(_ committed: String, current: String) -> String {
+        let stable = committed.trimmingCharacters(in: .whitespacesAndNewlines)
+        let live = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !stable.isEmpty else { return live }
+        guard !live.isEmpty else { return stable }
+        
+        let stableLower = stable.lowercased()
+        let liveLower = live.lowercased()
+        if stableLower.hasSuffix(liveLower) {
+            return stable
+        }
+        
+        let overlap = suffixPrefixWordOverlap(stableLower, liveLower)
+        if overlap > 0 {
+            let liveWords = words(live)
+            let tail = liveWords.dropFirst(overlap).joined(separator: " ")
+            if tail.isEmpty { return stable }
+            return stable + " " + tail
+        }
+        
+        return stable + " " + live
+    }
+    
+    private func words(_ value: String) -> [String] {
+        value.split(whereSeparator: \.isWhitespace).map(String.init)
+    }
+    
+    private func wordCount(_ value: String) -> Int {
+        words(value).count
+    }
+    
+    private func sharedPrefixWordCount(_ first: String, _ second: String) -> Int {
+        let a = words(first)
+        let b = words(second)
+        let maxCount = min(a.count, b.count)
+        guard maxCount > 0 else { return 0 }
+        
+        var count = 0
+        while count < maxCount, a[count].lowercased() == b[count].lowercased() {
+            count += 1
+        }
+        return count
+    }
+    
+    private func suffixPrefixWordOverlap(_ first: String, _ second: String) -> Int {
+        let a = words(first)
+        let b = words(second)
+        let maxCount = min(a.count, b.count)
+        guard maxCount > 0 else { return 0 }
+        
+        for overlap in stride(from: maxCount, through: 1, by: -1) {
+            let left = a.suffix(overlap).map { $0.lowercased() }
+            let right = b.prefix(overlap).map { $0.lowercased() }
+            if left == right {
+                return overlap
+            }
+        }
+        
+        return 0
+    }
+    
+    private func desktopRuntimeContext() -> String {
+        var parts: [String] = []
+        
+        if let app = NSWorkspace.shared.frontmostApplication {
+            if let name = app.localizedName, !name.isEmpty {
+                parts.append("frontmost_app=\(name)")
+            }
+            if let bundleID = app.bundleIdentifier, !bundleID.isEmpty {
+                parts.append("bundle_id=\(bundleID)")
+            }
+        }
+        
+        if let windowTitle = frontmostWindowTitle() {
+            parts.append("window_title=\(windowTitle)")
+        }
+        
+        parts.append("hotkey=\(config.hotkey)")
+        return parts.joined(separator: "; ")
+    }
+    
+    private func frontmostWindowTitle() -> String? {
+        guard let frontmostAppName = NSWorkspace.shared.frontmostApplication?.localizedName else {
+            return nil
+        }
+        
+        guard let infoList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+            return nil
+        }
+        
+        for info in infoList {
+            guard let ownerName = info[kCGWindowOwnerName as String] as? String,
+                  ownerName == frontmostAppName else {
+                continue
+            }
+            
+            guard let layer = info[kCGWindowLayer as String] as? Int, layer == 0 else {
+                continue
+            }
+            
+            if let title = info[kCGWindowName as String] as? String {
+                let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    return trimmed
+                }
+            }
+        }
+        
+        return nil
+    }
+    
+    private func isSelectionRewriteRequest(_ value: String) -> Bool {
+        let lower = value.lowercased()
+        let keywords = [
+            "rewrite", "rephrase", "polish", "improve this",
+            "make this shorter", "shorter", "friendlier",
+            "professional tone", "change the tone", "make this better"
+        ]
+        return keywords.contains { lower.contains($0) }
+    }
+    
+    private func isDirectApplyRewriteRequest(_ value: String) -> Bool {
+        let lower = value.lowercased()
+        let directApplyPhrases = [
+            "and apply",
+            "apply it",
+            "replace it",
+            "rewrite and apply",
+            "rewrite and replace",
+            "skip preview",
+            "no preview",
+            "directly apply",
+            "just apply"
+        ]
+        return directApplyPhrases.contains { lower.contains($0) }
+    }
+    
+    private func isApplyConfirmation(_ value: String) -> Bool {
+        let normalized = value.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let explicit = [
+            "apply", "yes", "yes apply", "confirm", "go ahead",
+            "do it", "replace it", "approved"
+        ]
+        return explicit.contains(normalized)
+    }
+    
+    private func isCancelPendingRewrite(_ value: String) -> Bool {
+        let normalized = value.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let cancelWords = ["cancel", "never mind", "dismiss", "skip that"]
+        return cancelWords.contains(normalized)
+    }
+    
+    private func buildSelectionRewritePrompt(request: String, selection: String) -> String {
+        """
+        Rewrite the selected text according to the user's request.
+        
+        User request:
+        \(request)
+        
+        Selected text:
+        \(selection)
+        
+        Return only the rewritten text. Do not include labels, quotes, markdown, or explanations.
+        """
+    }
+    
+    private func extractRewriteText(from response: String) -> String {
+        var cleaned = response.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned.hasPrefix("```") {
+            cleaned = cleaned.replacingOccurrences(of: "```", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        if cleaned.lowercased().hasPrefix("rewritten:") {
+            cleaned = String(cleaned.dropFirst("rewritten:".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        if cleaned.lowercased().hasPrefix("revised:") {
+            cleaned = String(cleaned.dropFirst("revised:".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        return cleaned
+    }
+    
+    private func speakThenReturnToIdle(_ message: String) async {
+        let line = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !line.isEmpty else {
+            state = .idle
+            return
+        }
+        
+        let engine = TTSEngine(config: config)
+        engine.reset()
+        ttsEngine = engine
+        state = .speaking(line)
+        await engine.speak(line)
+        ttsEngine = nil
+        if state != .idle {
+            state = .idle
+        }
+    }
+    
+    private func runBridgeCommand(arguments: [String], stdin: String? = nil) async -> [String: Any]? {
+        let bridgePath = bridgeScriptPath
+        return await Task.detached(priority: .userInitiated) {
+            guard FileManager.default.fileExists(atPath: bridgePath) else {
+                return [
+                    "ok": false,
+                    "error": "Bridge script not found at \(bridgePath)"
+                ]
+            }
+            
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+            process.arguments = [bridgePath] + arguments
+            
+            let outputPipe = Pipe()
+            process.standardOutput = outputPipe
+            process.standardError = outputPipe
+            
+            if let stdin {
+                let inputPipe = Pipe()
+                process.standardInput = inputPipe
+                if let inputData = stdin.data(using: .utf8) {
+                    inputPipe.fileHandleForWriting.write(inputData)
+                }
+                inputPipe.fileHandleForWriting.closeFile()
+            }
+            
+            do {
+                try process.run()
+                process.waitUntilExit()
+            } catch {
+                return [
+                    "ok": false,
+                    "error": "Failed to run bridge command: \(error.localizedDescription)"
+                ]
+            }
+            
+            let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+            let rawOutput = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard let data = rawOutput.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return [
+                    "ok": false,
+                    "error": "Bridge returned non-JSON output",
+                    "raw": rawOutput
+                ]
+            }
+            
+            return json
+        }.value
+    }
+    
+    private func fetchSelectedTextFromBridge() async -> String? {
+        guard let result = await runBridgeCommand(arguments: ["get_selection", "--json"]) else { return nil }
+        if let ok = result["ok"] as? Bool, !ok {
+            let reason = (result["error"] as? String) ?? "unknown error"
+            miloLog("⚠️ Bridge get_selection failed: \(reason)")
+            return nil
+        }
+        
+        let selection = (result["selection"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return selection.isEmpty ? nil : selection
+    }
+    
+    private func applySelectionRewrite(_ text: String) async -> Bool {
+        guard let result = await runBridgeCommand(arguments: ["replace_selection", "--stdin", "--json"], stdin: text) else {
+            return false
+        }
+        
+        if let ok = result["ok"] as? Bool, ok {
+            return true
+        }
+        
+        let reason = (result["error"] as? String) ?? "unknown error"
+        miloLog("⚠️ Bridge replace_selection failed: \(reason)")
+        return false
+    }
 
     private func processWithText(_ liveText: String) async {
         do {
@@ -414,7 +858,73 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Update HUD with final transcript
             transcript = text
             updateHUDContent(animated: true)
-
+            
+            let runtimeContext = desktopRuntimeContext()
+            miloLog("🖥️ Desktop context: \(runtimeContext)")
+            
+            if pendingSelectionRewrite != nil, isCancelPendingRewrite(text) {
+                pendingSelectionRewrite = nil
+                miloLog("🧹 Pending rewrite cancelled")
+                await speakThenReturnToIdle("Cancelled the pending rewrite.")
+                return
+            }
+            
+            if let pending = pendingSelectionRewrite, isApplyConfirmation(text) {
+                let applied = await applySelectionRewrite(pending.rewritten)
+                if applied {
+                    pendingSelectionRewrite = nil
+                    miloLog("✅ Applied pending rewrite (\(pending.rewritten.count) chars)")
+                    await speakThenReturnToIdle("Applied. I replaced the selected text.")
+                } else {
+                    miloLog("⚠️ Failed applying pending rewrite")
+                    await speakThenReturnToIdle("I couldn't apply that edit. Keep the text selected and say apply again.")
+                }
+                return
+            }
+            
+            if isSelectionRewriteRequest(text) {
+                guard let selection = await fetchSelectedTextFromBridge(), !selection.isEmpty else {
+                    miloLog("⚠️ Rewrite requested but no selected text was found")
+                    await speakThenReturnToIdle("I couldn't read selected text. Select the text first, then ask me to rewrite it.")
+                    return
+                }
+                
+                miloLog("✍️ Selection rewrite requested: \(selection.count) chars")
+                let rewritePrompt = buildSelectionRewritePrompt(request: text, selection: selection)
+                let rewriteResponse = try await openClawClient.sendMessage(text: rewritePrompt, screenshotPath: nil, runtimeContext: runtimeContext)
+                let rewritten = extractRewriteText(from: rewriteResponse)
+                
+                guard !rewritten.isEmpty else {
+                    miloLog("⚠️ Rewrite response was empty")
+                    await speakThenReturnToIdle("I couldn't generate a rewrite for that selection.")
+                    return
+                }
+                
+                if isDirectApplyRewriteRequest(text) {
+                    let applied = await applySelectionRewrite(rewritten)
+                    if applied {
+                        pendingSelectionRewrite = nil
+                        miloLog("✅ Direct rewrite applied (\(rewritten.count) chars)")
+                        await speakThenReturnToIdle("Done. I rewrote and replaced the selected text.")
+                    } else {
+                        miloLog("⚠️ Direct rewrite apply failed")
+                        await speakThenReturnToIdle("I generated the rewrite but couldn't apply it. Keep the text selected and say apply.")
+                    }
+                    return
+                }
+                
+                pendingSelectionRewrite = PendingSelectionRewrite(
+                    original: selection,
+                    rewritten: rewritten,
+                    request: text
+                )
+                
+                let preview = "Preview: \(rewritten). Say apply to replace your selected text."
+                miloLog("📝 Rewrite preview ready (\(rewritten.count) chars)")
+                await speakThenReturnToIdle(preview)
+                return
+            }
+            
             miloLog("📡 Sending with configured OpenClaw session routing: \(text)")
             let screenshotPath: String?
             if config.screenshotOnTrigger {
@@ -432,20 +942,59 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             engine.reset()
             ttsEngine = engine
             
-            // Get response via config-driven OpenClaw request (agentId/sessionKey from config)
-            let fullResponse = try await openClawClient.sendMessage(text: text, screenshotPath: screenshotPath)
-            miloLog("✅ Got response: \(fullResponse.count) chars")
+            // Primary path: stream model output and speak on first complete sentence.
+            let modelRequestStart = Date()
+            var streamedAnySentence = false
+            var streamedFullResponse = ""
+            var streamError: Error?
             
-            // Speak sentence-by-sentence and mirror current spoken text in the HUD.
-            let segments = speechSegments(from: fullResponse)
-            if segments.isEmpty {
-                state = .speaking(fullResponse)
-                await engine.speak(fullResponse)
-            } else {
-                for segment in segments {
-                    if engine.isCancelled || state == .idle { break }
-                    state = .speaking(segment)
-                    await engine.speakSentence(segment)
+            for await event in openClawClient.streamMessage(text: text, screenshotPath: screenshotPath, runtimeContext: runtimeContext) {
+                if engine.isCancelled || state == .idle { break }
+                
+                switch event {
+                case .sentence(let sentence):
+                    if !streamedAnySentence {
+                        let firstSentenceLatency = Date().timeIntervalSince(modelRequestStart)
+                        miloLog(String(format: "⚡ First sentence latency: %.2fs", firstSentenceLatency))
+                    }
+                    streamedAnySentence = true
+                    state = .speaking(sentence)
+                    await engine.speakSentence(sentence)
+                    
+                case .done(let full):
+                    streamedFullResponse = full
+                    miloLog("✅ Stream done: \(full.count) chars")
+                    
+                case .error(let err):
+                    streamError = err
+                }
+            }
+            
+            if let streamError {
+                miloLog("⚠️ Stream failed, falling back to non-streaming: \(streamError.localizedDescription)")
+            }
+            
+            // Fallback: if nothing was spoken from stream, use non-streaming completion.
+            if !streamedAnySentence && state != .idle && !engine.isCancelled {
+                let fallbackResponse: String
+                let streamedCandidate = streamedFullResponse.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !streamedCandidate.isEmpty {
+                    fallbackResponse = streamedCandidate
+                } else {
+                    fallbackResponse = try await openClawClient.sendMessage(text: text, screenshotPath: screenshotPath, runtimeContext: runtimeContext)
+                    miloLog("✅ Got fallback response: \(fallbackResponse.count) chars")
+                }
+                
+                let segments = speechSegments(from: fallbackResponse)
+                if segments.isEmpty {
+                    state = .speaking(fallbackResponse)
+                    await engine.speak(fallbackResponse)
+                } else {
+                    for segment in segments {
+                        if engine.isCancelled || state == .idle { break }
+                        state = .speaking(segment)
+                        await engine.speakSentence(segment)
+                    }
                 }
             }
             
@@ -528,6 +1077,61 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
+    private struct PreferredSystemVoice {
+        let menuTitle: String
+        let aliases: [String]
+    }
+    
+    private let preferredSystemVoices: [PreferredSystemVoice] = [
+        PreferredSystemVoice(menuTitle: "Siri Voice 1 (527.6MB)", aliases: ["Siri Voice 1", "Siri"]),
+        PreferredSystemVoice(menuTitle: "Zoe (Premium)", aliases: ["Zoe (Premium)", "Zoe"]),
+        PreferredSystemVoice(menuTitle: "Ava (Premium)", aliases: ["Ava (Premium)", "Ava"]),
+        PreferredSystemVoice(menuTitle: "Alex", aliases: ["Alex"]),
+        PreferredSystemVoice(menuTitle: "Lee", aliases: ["Lee"]),
+        PreferredSystemVoice(menuTitle: "Jamie", aliases: ["Jamie (Premium)", "Jamie"])
+    ]
+    
+    private func getInstalledSystemVoices() -> [String] {
+        var all = Set(getSystemVoices())
+        for voice in AVSpeechSynthesisVoice.speechVoices() {
+            all.insert(voice.name)
+        }
+        return all.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+    
+    private func normalizedVoiceName(_ value: String) -> String {
+        let lower = value.lowercased()
+            .replacingOccurrences(of: "voice", with: "")
+            .replacingOccurrences(of: "premium", with: "")
+            .replacingOccurrences(of: "enhanced", with: "")
+        return lower.replacingOccurrences(of: #"[^a-z0-9]+"#, with: "", options: .regularExpression)
+    }
+    
+    private func resolveInstalledVoice(for preferredVoice: PreferredSystemVoice, installedVoices: [String]) -> String? {
+        let aliasSet = Set(preferredVoice.aliases.map(normalizedVoiceName(_:)))
+        if preferredVoice.menuTitle.lowercased().contains("siri voice 1") {
+            if let exactSiri = installedVoices.first(where: { name in
+                let normalized = normalizedVoiceName(name)
+                return normalized == "siri1" || normalized == "siri01" || normalized == "sirivoice1"
+            }) {
+                return exactSiri
+            }
+        }
+        
+        if let direct = installedVoices.first(where: { aliasSet.contains(normalizedVoiceName($0)) }) {
+            return direct
+        }
+        
+        if preferredVoice.menuTitle.lowercased().contains("siri voice 1") {
+            let siriCandidates = installedVoices.filter { normalizedVoiceName($0).contains("siri") }
+            if siriCandidates.count == 1 {
+                return siriCandidates[0]
+            }
+        }
+        
+        return nil
+    }
+    
     private func parseVoiceName(from line: String) -> String? {
         let withoutDescription = line.components(separatedBy: "#").first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !withoutDescription.isEmpty else { return nil }
@@ -573,19 +1177,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         ]
     }
     
-    private func getPopularVoices() -> [(name: String, description: String)] {
-        return [
-            ("Samantha (English (US))", "Default female"),
-            ("Daniel (English (UK))", "British male"),
-            ("Karen (English (AU))", "Australian female"),
-            ("Fred (English (US))", "Classic male"),
-            ("Eddy (English (US))", "Neural male"),
-            ("Flo (English (US))", "Neural female"),
-            ("Whisper", "Soft whisper"),
-            ("Zarvox", "Robot voice")
-        ]
-    }
-    
     private func populateVoiceMenu(_ menu: NSMenu) {
         menu.removeAllItems()
         let engine = normalizedTTSEngine()
@@ -610,45 +1201,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         let currentVoice = config.ttsVoice ?? "Samantha (English (US))"
+        let installedVoices = getInstalledSystemVoices()
         
-        // Add popular voices first
-        let popularVoices = getPopularVoices()
-        for (voice, description) in popularVoices {
-            let item = NSMenuItem(title: "\(voice) - \(description)", action: #selector(selectVoice(_:)), keyEquivalent: "")
-            item.representedObject = voice
-            item.target = self
-            if voice == currentVoice {
-                item.state = .on
+        for preferredVoice in preferredSystemVoices {
+            if let installedVoice = resolveInstalledVoice(for: preferredVoice, installedVoices: installedVoices) {
+                let item = NSMenuItem(title: preferredVoice.menuTitle, action: #selector(selectVoice(_:)), keyEquivalent: "")
+                item.representedObject = installedVoice
+                item.target = self
+                if normalizedVoiceName(installedVoice) == normalizedVoiceName(currentVoice) {
+                    item.state = .on
+                }
+                menu.addItem(item)
+            } else {
+                let item = NSMenuItem(title: "\(preferredVoice.menuTitle) (Download…)", action: #selector(downloadSystemVoice(_:)), keyEquivalent: "")
+                item.representedObject = preferredVoice.menuTitle
+                item.target = self
+                menu.addItem(item)
             }
-            menu.addItem(item)
         }
-        
-        menu.addItem(.separator())
-        
-        let allVoicesItem = NSMenuItem(title: "All System Voices", action: nil, keyEquivalent: "")
-        let allVoicesMenu = NSMenu(title: "All System Voices")
-        allVoicesItem.submenu = allVoicesMenu
-        
-        let popularVoiceNames = Set(popularVoices.map(\.name))
-        let allVoices = getSystemVoices().filter { !popularVoiceNames.contains($0) }
-        
-        for voiceName in allVoices {
-            let item = NSMenuItem(title: voiceName, action: #selector(selectVoice(_:)), keyEquivalent: "")
-            item.representedObject = voiceName
-            item.target = self
-            if voiceName == currentVoice {
-                item.state = .on
-            }
-            allVoicesMenu.addItem(item)
-        }
-        
-        if allVoices.isEmpty {
-            let noneItem = NSMenuItem(title: "No additional voices found", action: nil, keyEquivalent: "")
-            noneItem.isEnabled = false
-            allVoicesMenu.addItem(noneItem)
-        }
-        
-        menu.addItem(allVoicesItem)
     }
     
     @objc private func selectSpeechEngine(_ sender: NSMenuItem) {
@@ -698,6 +1268,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             preview.reset()
             await preview.speakSentence("Kokoro voice set to \(voiceName).")
         }
+    }
+    
+    @objc private func downloadSystemVoice(_ sender: NSMenuItem) {
+        let requestedVoice = sender.representedObject as? String ?? "selected voice"
+        miloLog("↗️ Opening voice downloads for \(requestedVoice)")
+        openVoiceDownloadSettings()
+    }
+    
+    private func openVoiceDownloadSettings() {
+        let urls = [
+            "x-apple.systempreferences:com.apple.preference.accessibility?SpokenContent",
+            "x-apple.systempreferences:com.apple.preference.universalaccess?SpokenContent",
+            "x-apple.systempreferences:com.apple.preference.accessibility"
+        ]
+        
+        for raw in urls {
+            guard let url = URL(string: raw) else { continue }
+            if NSWorkspace.shared.open(url) {
+                return
+            }
+        }
+        
+        let fallback = URL(fileURLWithPath: "/System/Library/PreferencePanes/Accessibility.prefPane")
+        NSWorkspace.shared.open(fallback)
     }
     
     private func testVoice(_ voiceName: String, completion: @escaping (Bool) -> Void) {

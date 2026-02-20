@@ -11,6 +11,7 @@ Internal app/binary name remains `MiloOverlay`.
 - Live speech recognition with Whisper fallback
 - OpenClaw chat completions routing (agent + session aware)
 - Sentence-level TTS captions while speaking
+- Selected-text rewrite flow with explicit apply confirmation
 - TTS engines:
   - `system` (Apple local voices via `say`)
   - `kokoro` (local open-source Kokoro-82M)
@@ -79,6 +80,17 @@ Example fields:
   "sessionKey": "agent:voice:main"
 }
 ```
+
+## Selected-Text Rewrite Flow
+
+When you ask Milo to rewrite text (for example: "rewrite this to sound friendlier"), the app now:
+
+1. Reads the current selection from the active app.
+2. Asks OpenClaw to generate a rewrite preview.
+3. Speaks the preview and waits for confirmation.
+4. Applies only after you say `apply`.
+
+Bridge script (included in this repo): `desktop-actions/milo_bridge.py`
 
 ## Open Source Notes
 
