@@ -9,6 +9,11 @@ let package = Package(
             name: "MiloOverlay",
             path: "Sources/MiloOverlay",
             resources: [.copy("../../Resources/Info.plist")]
+        ),
+        .testTarget(
+            name: "MiloOverlayTests",
+            dependencies: ["MiloOverlay"],
+            path: "Tests/MiloOverlayTests"
         )
     ]
 )

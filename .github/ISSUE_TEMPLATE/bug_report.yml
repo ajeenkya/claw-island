@@ -1,0 +1,57 @@
+name: Bug report
+description: Report a reproducible bug in Claw Island
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug report. Please include exact reproduction steps and logs where possible.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      placeholder: What is broken?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Launch app
+        2. Press fn
+        3. Speak...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "e.g. macOS 15.3"
+    validations:
+      required: true
+  - type: input
+    id: openclaw
+    attributes:
+      label: OpenClaw version
+      placeholder: "e.g. 2026.2.19-2"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste sanitized log excerpts from ~/.openclaw if available.
+      render: shell

@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  swift-build-and-test:
+    name: Swift Build and Test (macOS)
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Swift Version
+        run: swift --version
+
+      - name: Build MiloOverlay
+        run: |
+          cd src/MiloOverlay
+          swift build -c debug
+
+      - name: Run Unit Tests
+        run: |
+          cd src/MiloOverlay
+          swift test
+
+  scripts-sanity:
+    name: Script Sanity Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Shell Syntax Check
+        run: |
+          for script in scripts/*.sh; do
+            bash -n "$script"
+          done
+
+      - name: Python Syntax Check
+        run: |
+          python3 -m py_compile desktop-actions/milo_bridge.py
+          python3 -m py_compile scripts/kokoro_tts.py

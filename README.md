@@ -1,5 +1,7 @@
 # Claw Island
 
+[![CI](https://github.com/ajeenkya/claw-island/actions/workflows/ci.yml/badge.svg)](https://github.com/ajeenkya/claw-island/actions/workflows/ci.yml)
+
 A macOS menu-bar voice overlay for OpenClaw with notch-style HUD, push-to-talk hotkey, local speech recognition fallback, and low-latency TTS.
 
 Internal app/binary name remains `MiloOverlay`.
@@ -43,6 +45,13 @@ Or from repo root:
 ```bash
 ./scripts/install-app.sh
 open -a "$HOME/Desktop/MiloOverlay.app"
+```
+
+## Tests
+
+```bash
+cd src/MiloOverlay
+swift test
 ```
 
 ## Permissions
@@ -99,6 +108,13 @@ Bridge script (included in this repo): `desktop-actions/milo_bridge.py`
 - Recommended first publish pass:
   - scrub `~/.openclaw/milo-overlay.json`
   - rotate any local gateway token previously used in development
+
+## Contributing
+
+- Contribution guide: `CONTRIBUTING.md`
+- Security policy: `SECURITY.md`
+- Code of conduct: `CODE_OF_CONDUCT.md`
+- Changelog: `CHANGELOG.md`
 
 ## License
 
