@@ -1,6 +1,8 @@
-# MiloOverlay
+# Claw Island
 
 A macOS menu-bar voice overlay for OpenClaw with notch-style HUD, push-to-talk hotkey, local speech recognition fallback, and low-latency TTS.
+
+Internal app/binary name remains `MiloOverlay`.
 
 ## Features
 
