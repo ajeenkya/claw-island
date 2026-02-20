@@ -8,8 +8,7 @@ private enum OC {
     static let tealDim = Color(red: 0.08, green: 0.72, blue: 0.65).opacity(0.5)
     static let red = Color(red: 0.94, green: 0.27, blue: 0.27)
     static let green = Color(red: 0.13, green: 0.77, blue: 0.37)
-    static let notchBlack = Color(red: 0.035, green: 0.035, blue: 0.04)
-    static let notchBlackDeep = Color(red: 0.015, green: 0.015, blue: 0.02)
+    static let notchBlack = Color.black
     static let textPrimary = Color.white
     static let textSecondary = Color.white.opacity(0.6)
     static let textMuted = Color.white.opacity(0.4)
@@ -28,12 +27,10 @@ struct RecordingHUD: View {
     @ObservedObject var model: HUDModel
     
     @State private var glowPulse = false
-    @State private var sheenProgress: CGFloat = -1.2
     @State private var hasAppeared = false
     
     // Geometry for the notch expansion
     private let notchWidth: CGFloat = 190
-    private let expandedWidth: CGFloat = 340
     private let notchHeight: CGFloat = 34
     
     private var state: MiloState { model.state }
@@ -41,6 +38,14 @@ struct RecordingHUD: View {
     private var audioLevel: Float { model.audioLevel }
     private var isExpanded: Bool { state != .idle }
     private var stateKey: String { state.description }
+    private var expandedWidth: CGFloat {
+        switch state {
+        case .recording: return 560
+        case .processing: return 540
+        case .speaking: return 640
+        case .idle: return notchWidth
+        }
+    }
     
     private var accentColor: Color {
         switch state {
@@ -61,8 +66,7 @@ struct RecordingHUD: View {
                 DynamicBackdrop(
                     accentColor: accentColor,
                     isExpanded: isExpanded,
-                    glowPulse: glowPulse,
-                    sheenProgress: sheenProgress
+                    glowPulse: glowPulse
                 )
                 
                 islandContent
@@ -95,7 +99,6 @@ struct RecordingHUD: View {
                 .offset(y: hasAppeared ? 0 : -3)
                 .opacity(hasAppeared ? 1.0 : 0.01)
         }
-        .drawingGroup()
         .onAppear {
             withAnimation(.spring(response: 0.36, dampingFraction: 0.74)) {
                 hasAppeared = true
@@ -103,12 +106,9 @@ struct RecordingHUD: View {
             withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
                 glowPulse = true
             }
-            withAnimation(.linear(duration: 2.6).repeatForever(autoreverses: false)) {
-                sheenProgress = 1.2
-            }
         }
-        .animation(.interactiveSpring(response: 0.42, dampingFraction: 0.84, blendDuration: 0.2), value: isExpanded)
-        .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.86, blendDuration: 0.15), value: stateKey)
+        .animation(.interactiveSpring(response: 0.38, dampingFraction: 0.86, blendDuration: 0.2), value: isExpanded)
+        .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.9, blendDuration: 0.12), value: stateKey)
     }
     
     @ViewBuilder
@@ -217,7 +217,6 @@ struct RecordingHUD: View {
                         .font(.system(size: 17, weight: .semibold, design: .rounded))
                         .foregroundColor(OC.textPrimary.opacity(0.96))
                         .multilineTextAlignment(.leading)
-                        .lineLimit(5)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -225,11 +224,11 @@ struct RecordingHUD: View {
                 .padding(.vertical, 12)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.white.opacity(0.05))
+                        .fill(Color.white.opacity(0.02))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        .stroke(Color.white.opacity(0.05), lineWidth: 1)
                 )
                 .padding(.horizontal, 16)
             }
@@ -260,7 +259,6 @@ private struct DynamicBackdrop: View {
     let accentColor: Color
     let isExpanded: Bool
     let glowPulse: Bool
-    let sheenProgress: CGFloat
     
     var body: some View {
         GeometryReader { proxy in
@@ -268,27 +266,21 @@ private struct DynamicBackdrop: View {
             let height = max(proxy.size.height, 1)
             
             ZStack {
-                LinearGradient(
-                    colors: [
-                        OC.notchBlackDeep,
-                        OC.notchBlack
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                OC.notchBlack
                 
+                // Subtle neutral sheen to avoid a flat rectangle while matching notch black.
                 RadialGradient(
                     colors: [
-                        Color.white.opacity(isExpanded ? (glowPulse ? 0.08 : 0.05) : 0.02),
+                        Color.white.opacity(isExpanded ? (glowPulse ? 0.05 : 0.035) : 0.015),
                         .clear
                     ],
                     center: .top,
                     startRadius: 2,
-                    endRadius: max(width, height) * 0.75
+                    endRadius: max(width, height) * 0.7
                 )
                 
                 LinearGradient(
-                    colors: [.clear, Color.black.opacity(0.20)],
+                    colors: [.clear, Color.black.opacity(0.14)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -299,33 +291,15 @@ private struct DynamicBackdrop: View {
                         LinearGradient(
                             colors: [
                                 .clear,
-                                accentColor.opacity(isExpanded ? (glowPulse ? 0.24 : 0.16) : 0.08),
+                                accentColor.opacity(isExpanded ? (glowPulse ? 0.20 : 0.12) : 0.06),
                                 .clear
                             ],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
                     )
-                    .frame(width: width * 0.42, height: 1)
-                    .offset(y: isExpanded ? 8 : 10)
-                
-                // Moving highlight sweep for glass polish.
-                Rectangle()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                .clear,
-                                Color.white.opacity(isExpanded ? 0.08 : 0.03),
-                                .clear
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .frame(width: width * 0.34, height: height * 1.6)
-                    .rotationEffect(.degrees(22))
-                    .offset(x: sheenProgress * width)
-                    .blendMode(.plusLighter)
+                    .frame(width: width * 0.38, height: 1)
+                    .offset(y: isExpanded ? 9 : 11)
             }
         }
     }

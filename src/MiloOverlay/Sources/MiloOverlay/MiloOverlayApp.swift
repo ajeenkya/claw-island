@@ -71,6 +71,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var hudHostView: NSHostingView<RecordingHUD>?
     private let hudModel = HUDModel()
     private let collapsedHudSize = NSSize(width: 190, height: 34)
+    private var lastMeasuredHUDSize = NSSize(width: 0, height: 0)
     private var transcript: String = ""
     
     private var state: MiloState = .idle {
@@ -164,6 +165,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         if hudHostView == nil {
             let hostView = NSHostingView(rootView: RecordingHUD(model: hudModel))
+            hostView.wantsLayer = true
+            hostView.layer?.backgroundColor = NSColor.clear.cgColor
             hudHostView = hostView
             window.contentView = hostView
         }
@@ -186,19 +189,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             applyHUDModel()
             let targetFrame = hudFrame(for: measuredHUDSize(hostView: hostView))
             let overshootFrame = NSRect(
-                x: targetFrame.origin.x - (targetFrame.width * 0.01),
-                y: targetFrame.origin.y - (targetFrame.height * 0.01),
-                width: targetFrame.width * 1.02,
-                height: targetFrame.height * 1.02
+                x: targetFrame.origin.x - (targetFrame.width * 0.008),
+                y: targetFrame.origin.y - (targetFrame.height * 0.008),
+                width: targetFrame.width * 1.016,
+                height: targetFrame.height * 1.016
             )
             
             NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.17
+                ctx.duration = 0.19
                 ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
                 window.animator().setFrame(overshootFrame, display: true)
             } completionHandler: {
                 NSAnimationContext.runAnimationGroup { settle in
-                    settle.duration = 0.11
+                    settle.duration = 0.14
                     settle.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                     window.animator().setFrame(targetFrame, display: true)
                 }
@@ -218,13 +221,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         hudModel.state = .idle
         hudModel.transcript = ""
         hudModel.audioLevel = 0
+        lastMeasuredHUDSize = NSSize(width: 0, height: 0)
         hostView.layoutSubtreeIfNeeded()
         
         NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.15
+            ctx.duration = 0.18
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
             window.animator().setFrame(collapsedFrame, display: true)
-            window.animator().alphaValue = 0.9
+            window.animator().alphaValue = 1.0
         }) {
             window.orderOut(nil)
             window.alphaValue = 1
@@ -247,11 +251,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let window = hudWindow, let hostView = hudHostView else { return }
         
         applyHUDModel()
-        let targetFrame = hudFrame(for: measuredHUDSize(hostView: hostView))
+        let measuredSize = measuredHUDSize(hostView: hostView)
+        let needsResize = abs(measuredSize.width - lastMeasuredHUDSize.width) > 0.5 || abs(measuredSize.height - lastMeasuredHUDSize.height) > 0.5
+        
+        guard needsResize else { return }
+        lastMeasuredHUDSize = measuredSize
+        
+        let targetFrame = hudFrame(for: measuredSize)
         
         if animated, window.isVisible {
             NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.16
+                ctx.duration = 0.18
                 ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                 window.animator().setFrame(targetFrame, display: true)
             }
