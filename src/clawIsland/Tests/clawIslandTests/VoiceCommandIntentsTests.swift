@@ -1,5 +1,5 @@
 import XCTest
-@testable import MiloOverlay
+@testable import clawIsland
 
 final class VoiceCommandIntentsTests: XCTestCase {
     func testSelectionRewriteIntent() {
@@ -39,5 +39,30 @@ final class VoiceCommandIntentsTests: XCTestCase {
             VoiceCommandIntents.extractRewriteText(from: "  Plain output  "),
             "Plain output"
         )
+    }
+
+    func testParseTypeAndSendIntentWithSendKey() {
+        let intent = VoiceCommandIntents.parseTypeAndSendIntent("Respond yes and then press send to Kodex")
+        XCTAssertNotNil(intent)
+        XCTAssertEqual(intent?.text, "yes")
+        XCTAssertEqual(intent?.sendKey, .enter)
+    }
+
+    func testParseTypeAndSendIntentWithCommandEnter() {
+        let intent = VoiceCommandIntents.parseTypeAndSendIntent("type \"looks good\" and press command enter")
+        XCTAssertNotNil(intent)
+        XCTAssertEqual(intent?.text, "looks good")
+        XCTAssertEqual(intent?.sendKey, .commandEnter)
+    }
+
+    func testParseTypeAndSendIntentStripsLocationFiller() {
+        let intent = VoiceCommandIntents.parseTypeAndSendIntent("type yes here and press the send key")
+        XCTAssertNotNil(intent)
+        XCTAssertEqual(intent?.text, "yes")
+        XCTAssertEqual(intent?.sendKey, .enter)
+    }
+
+    func testParseTypeAndSendIntentRejectsNonActionPrompt() {
+        XCTAssertNil(VoiceCommandIntents.parseTypeAndSendIntent("can you explain why this failed"))
     }
 }

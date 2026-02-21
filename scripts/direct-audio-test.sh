@@ -4,8 +4,8 @@ echo "🧪 DIRECT AUDIO TEST - No UI, Just Core Functionality"
 echo "================================================="
 echo ""
 
-# Kill any existing MiloOverlay
-pkill MiloOverlay 2>/dev/null
+# Kill any existing clawIsland
+pkill clawIsland 2>/dev/null
 
 echo "🎤 Testing basic audio recording..."
 
@@ -25,7 +25,7 @@ echo "✅ Audio recorded: ${FILE_SIZE} bytes"
 # Test 2: Can we transcribe with Whisper?
 echo ""
 echo "🔍 Testing Whisper transcription..."
-cd "$(dirname "$0")/../src/MiloOverlay/.build/release"
+cd "$(dirname "$0")/../src/clawIsland/.build/release"
 
 if command -v whisper >/dev/null 2>&1; then
     echo "Using system whisper..."
@@ -61,7 +61,7 @@ echo "   OpenClaw connection: $([ "$RESPONSE" = "200" ] || [ "$RESPONSE" = "401"
 echo ""
 
 if [ $FILE_SIZE -gt 1000 ]; then
-    echo "🚀 BASIC AUDIO WORKS! The issue is likely with MiloOverlay's UI/permissions."
+    echo "🚀 BASIC AUDIO WORKS! The issue is likely with clawIsland's UI/permissions."
     echo "   Try this: Record a voice memo and speak: 'Hello, this is a test'"
     echo ""
     read -p "Press Enter after you've spoken, then I'll record and transcribe..."

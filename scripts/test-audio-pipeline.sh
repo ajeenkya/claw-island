@@ -1,10 +1,10 @@
 #!/bin/bash
 
-echo "🧪 Testing MiloOverlay Audio Pipeline"
+echo "🧪 Testing clawIsland Audio Pipeline"
 echo ""
 
-# Kill any existing MiloOverlay
-pkill MiloOverlay 2>/dev/null
+# Kill any existing clawIsland
+pkill clawIsland 2>/dev/null
 
 # Start a simple audio recording test first
 echo "📡 Testing basic audio recording with ffmpeg..."
@@ -41,32 +41,32 @@ echo "🔐 Checking permissions..."
 if [ -r ~/Library/Application\ Support/com.apple.TCC/TCC.db ]; then
     echo "TCC Database readable - checking permissions..."
     
-    # Check for MiloOverlay microphone permission
-    MIC_PERM=$(sqlite3 ~/Library/Application\ Support/com.apple.TCC/TCC.db "SELECT service,client,allowed FROM access WHERE service='kTCCServiceMicrophone' AND client LIKE '%MiloOverlay%' ORDER BY last_modified DESC LIMIT 1;" 2>/dev/null)
+    # Check for clawIsland microphone permission
+    MIC_PERM=$(sqlite3 ~/Library/Application\ Support/com.apple.TCC/TCC.db "SELECT service,client,allowed FROM access WHERE service='kTCCServiceMicrophone' AND client LIKE '%clawIsland%' ORDER BY last_modified DESC LIMIT 1;" 2>/dev/null)
     
     if [ -n "$MIC_PERM" ]; then
         echo "📊 Microphone permission: $MIC_PERM"
     else
-        echo "⚠️  No microphone permission record found for MiloOverlay"
+        echo "⚠️  No microphone permission record found for clawIsland"
     fi
     
     # Check speech recognition permission
-    SPEECH_PERM=$(sqlite3 ~/Library/Application\ Support/com.apple.TCC/TCC.db "SELECT service,client,allowed FROM access WHERE service='kTCCServiceSpeechRecognition' AND client LIKE '%MiloOverlay%' ORDER BY last_modified DESC LIMIT 1;" 2>/dev/null)
+    SPEECH_PERM=$(sqlite3 ~/Library/Application\ Support/com.apple.TCC/TCC.db "SELECT service,client,allowed FROM access WHERE service='kTCCServiceSpeechRecognition' AND client LIKE '%clawIsland%' ORDER BY last_modified DESC LIMIT 1;" 2>/dev/null)
     
     if [ -n "$SPEECH_PERM" ]; then
         echo "📊 Speech recognition permission: $SPEECH_PERM"
     else
-        echo "⚠️  No speech recognition permission record found for MiloOverlay"
+        echo "⚠️  No speech recognition permission record found for clawIsland"
     fi
 else
     echo "⚠️  Cannot read TCC database - check System Preferences manually"
 fi
 
 echo ""
-echo "🚀 Starting MiloOverlay with enhanced debugging..."
+echo "🚀 Starting clawIsland with enhanced debugging..."
 echo "Press fn key to test - watch for audio level logs and transcript updates"
 echo ""
 
-# Start MiloOverlay in foreground so we can see all logs
-cd "$(dirname "$0")/../src/MiloOverlay"
-exec ./.build/release/MiloOverlay
+# Start clawIsland in foreground so we can see all logs
+cd "$(dirname "$0")/../src/clawIsland"
+exec ./.build/release/clawIsland

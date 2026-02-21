@@ -1,5 +1,5 @@
 ---
-description: Safe local text actions for MiloOverlay using selected-text rewrite preview + explicit apply.
+description: Safe local text actions for clawIsland using selected-text rewrite preview + explicit apply.
 ---
 
 # Milo Desktop Actions

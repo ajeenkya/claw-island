@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🔧 Changing MiloOverlay Hotkey"
+echo "🔧 Changing clawIsland Hotkey"
 echo ""
 echo "Current hotkey options:"
 echo "1. fn (default)"
@@ -10,7 +10,7 @@ echo "4. Control+Space"
 echo "5. Custom"
 echo ""
 
-CONFIG_FILE="$HOME/.openclaw/milo-overlay.json"
+CONFIG_FILE="$HOME/.openclaw/clawIsland.json"
 
 read -p "Choose hotkey (1-5): " choice
 
@@ -33,7 +33,7 @@ echo "🔧 Setting hotkey to: $HOTKEY"
 # Update config
 jq --arg hotkey "$HOTKEY" '.hotkey = $hotkey' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp" && mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
 
-echo "✅ Hotkey changed! Restart MiloOverlay for changes to take effect."
+echo "✅ Hotkey changed! Restart clawIsland for changes to take effect."
 echo ""
 echo "Current config:"
 jq . "$CONFIG_FILE"

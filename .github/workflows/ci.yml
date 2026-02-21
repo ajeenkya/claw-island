@@ -16,14 +16,14 @@ jobs:
       - name: Swift Version
         run: swift --version
 
-      - name: Build MiloOverlay
+      - name: Build clawIsland
         run: |
-          cd src/MiloOverlay
+          cd src/clawIsland
           swift build -c debug
 
       - name: Run Unit Tests
         run: |
-          cd src/MiloOverlay
+          cd src/clawIsland
           swift test
 
   scripts-sanity:

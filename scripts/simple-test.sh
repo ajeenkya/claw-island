@@ -1,22 +1,22 @@
 #!/bin/bash
 
-echo "🎤 Simple MiloOverlay Test - No Hotkeys Required"
+echo "🎤 Simple clawIsland Test - No Hotkeys Required"
 echo ""
-echo "This will test MiloOverlay's core recording functionality"
+echo "This will test clawIsland's core recording functionality"
 echo "using menu commands instead of hotkeys"
 echo ""
 
 # Kill existing
-pkill MiloOverlay 2>/dev/null
+pkill clawIsland 2>/dev/null
 
-echo "🚀 Starting MiloOverlay..."
-cd "$(dirname "$0")/../src/MiloOverlay"
+echo "🚀 Starting clawIsland..."
+cd "$(dirname "$0")/../src/clawIsland"
 
 # Run with debugging
-./.build/release/MiloOverlay &
+./.build/release/clawIsland &
 MILO_PID=$!
 
-echo "✅ MiloOverlay started (PID: $MILO_PID)"
+echo "✅ clawIsland started (PID: $MILO_PID)"
 echo ""
 echo "📋 IMPORTANT: Look for the MICROPHONE ICON in your menu bar"
 echo "             (top-right corner of your screen)"
@@ -30,7 +30,7 @@ echo ""
 echo "If you don't see the menu bar icon, tell me and I'll create"
 echo "an alternative solution."
 echo ""
-echo "Press Ctrl+C to stop MiloOverlay"
+echo "Press Ctrl+C to stop clawIsland"
 echo ""
 
 # Keep script running

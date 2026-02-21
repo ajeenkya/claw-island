@@ -152,7 +152,7 @@ class TTSEngine {
         }
         
         let home = NSHomeDirectory()
-        let venvPython = "\(home)/.openclaw/milo-overlay/kokoro-venv/bin/python3"
+        let venvPython = "\(home)/.openclaw/clawIsland/kokoro-venv/bin/python3"
         if FileManager.default.isExecutableFile(atPath: venvPython) {
             return venvPython
         }
@@ -196,7 +196,7 @@ class TTSEngine {
         let candidates = [
             "\(cwd)/scripts/kokoro_tts.py",
             "\(cwd)/../scripts/kokoro_tts.py",
-            "\(NSHomeDirectory())/.openclaw/milo-overlay/kokoro_tts.py"
+            "\(NSHomeDirectory())/.openclaw/clawIsland/kokoro_tts.py"
         ]
         
         return candidates.first(where: { fileManager.fileExists(atPath: $0) })

@@ -6,6 +6,7 @@ Commands:
 - get_selection: copy current selection and return it (clipboard-safe best effort).
 - replace_selection: paste provided text over current selection.
 - insert_text: paste provided text at cursor.
+- press_send: press Enter / Command+Enter send key.
 """
 
 import argparse
@@ -46,6 +47,14 @@ def set_clipboard_text(value: str) -> None:
 def command_keystroke(key: str) -> None:
     # Accessibility permission is required for System Events keystrokes.
     script = f'tell application "System Events" to keystroke "{key}" using command down'
+    run_osascript(script)
+
+
+def command_key_code(code: int, modifiers: Optional[list[str]] = None) -> None:
+    modifier_clause = ""
+    if modifiers:
+        modifier_clause = " using {" + ", ".join(modifiers) + "}"
+    script = f'tell application "System Events" to key code {code}{modifier_clause}'
     run_osascript(script)
 
 
@@ -177,6 +186,35 @@ def cmd_insert_text(args: argparse.Namespace) -> Dict[str, Any]:
     return with_preserved_clipboard_text(action)
 
 
+def cmd_press_send(args: argparse.Namespace) -> Dict[str, Any]:
+    requested_key = (args.key or "enter").strip().lower()
+    key = "enter" if requested_key == "auto" else requested_key
+
+    if key == "enter":
+        key_code = 36
+        modifiers: list[str] = []
+    elif key == "command_enter":
+        key_code = 36
+        modifiers = ["command down"]
+    else:
+        raise RuntimeError(f"Unsupported send key: {requested_key}")
+
+    context_before = get_frontmost_context()
+    command_key_code(key_code, modifiers if modifiers else None)
+    time.sleep(max(args.delay_ms, 35) / 1000.0)
+    context_after = get_frontmost_context()
+
+    return {
+        "ok": True,
+        "command": "press_send",
+        "requestedKey": requested_key,
+        "resolvedKey": key,
+        "contextBefore": context_before,
+        "contextAfter": context_after,
+        "frontmostStable": context_before.get("frontmostApp", "") == context_after.get("frontmostApp", ""),
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Milo desktop text bridge")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -200,6 +238,18 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--stdin", action="store_true", help="Read payload from stdin")
         p.add_argument("--json", action="store_true", help="Emit JSON")
         p.set_defaults(handler=handler)
+
+    p_send = subparsers.add_parser("press_send", help="Press send key (Enter / Command+Enter)")
+    p_send.add_argument(
+        "--key",
+        type=str,
+        default="enter",
+        choices=["auto", "enter", "command_enter"],
+        help="Send key variant",
+    )
+    p_send.add_argument("--delay-ms", type=int, default=120, help="Delay after key press")
+    p_send.add_argument("--json", action="store_true", help="Emit JSON")
+    p_send.set_defaults(handler=cmd_press_send)
 
     return parser
 

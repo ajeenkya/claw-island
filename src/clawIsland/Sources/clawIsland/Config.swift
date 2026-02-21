@@ -1,6 +1,6 @@
 import Foundation
 
-/// App configuration loaded from ~/.openclaw/milo-overlay.json
+/// App configuration loaded from ~/.openclaw/clawIsland.json
 struct MiloConfig: Codable {
     var hotkey: String
     var gatewayUrl: String
@@ -34,6 +34,25 @@ struct MiloConfig: Codable {
     /// Maximum tokens requested from the gateway.
     var maxTokens: Int
 
+    /// When true, clawIsland only relays voice transcripts to OpenClaw.
+    /// Local desktop action shortcuts in the overlay are disabled.
+    var relayOnlyMode: Bool
+
+    /// Enable adaptive token budgeting based on utterance length/intent.
+    var adaptiveMaxTokensEnabled: Bool
+
+    /// Lower bound for adaptive token budgeting.
+    var adaptiveMaxTokensFloor: Int
+
+    /// When enabled, Milo sends an early warmup request while recording to reduce first-token latency.
+    var speculativePrewarmEnabled: Bool
+
+    /// Minimum live transcript word count before speculative prewarm can start.
+    var speculativePrewarmMinWords: Int
+
+    /// Cooldown between speculative prewarm calls.
+    var speculativePrewarmCooldownSeconds: Double
+
     static let defaultConfig = MiloConfig(
         hotkey: "Option+Space",
         gatewayUrl: "http://localhost:18789",
@@ -52,7 +71,13 @@ struct MiloConfig: Codable {
         model: "openclaw",
         conversationBufferSize: 10,
         agentId: "main",
-        maxTokens: 512
+        maxTokens: 512,
+        relayOnlyMode: true,
+        adaptiveMaxTokensEnabled: true,
+        adaptiveMaxTokensFloor: 128,
+        speculativePrewarmEnabled: true,
+        speculativePrewarmMinWords: 5,
+        speculativePrewarmCooldownSeconds: 90
     )
     
     enum CodingKeys: String, CodingKey {
@@ -74,6 +99,12 @@ struct MiloConfig: Codable {
         case conversationBufferSize
         case agentId
         case maxTokens
+        case relayOnlyMode
+        case adaptiveMaxTokensEnabled
+        case adaptiveMaxTokensFloor
+        case speculativePrewarmEnabled
+        case speculativePrewarmMinWords
+        case speculativePrewarmCooldownSeconds
     }
 
     init(
@@ -94,7 +125,13 @@ struct MiloConfig: Codable {
         model: String,
         conversationBufferSize: Int,
         agentId: String,
-        maxTokens: Int
+        maxTokens: Int,
+        relayOnlyMode: Bool,
+        adaptiveMaxTokensEnabled: Bool,
+        adaptiveMaxTokensFloor: Int,
+        speculativePrewarmEnabled: Bool,
+        speculativePrewarmMinWords: Int,
+        speculativePrewarmCooldownSeconds: Double
     ) {
         self.hotkey = hotkey
         self.gatewayUrl = gatewayUrl
@@ -114,6 +151,12 @@ struct MiloConfig: Codable {
         self.conversationBufferSize = max(1, conversationBufferSize)
         self.agentId = agentId
         self.maxTokens = max(1, maxTokens)
+        self.relayOnlyMode = relayOnlyMode
+        self.adaptiveMaxTokensEnabled = adaptiveMaxTokensEnabled
+        self.adaptiveMaxTokensFloor = max(1, min(self.maxTokens, adaptiveMaxTokensFloor))
+        self.speculativePrewarmEnabled = speculativePrewarmEnabled
+        self.speculativePrewarmMinWords = max(1, speculativePrewarmMinWords)
+        self.speculativePrewarmCooldownSeconds = max(10, min(600, speculativePrewarmCooldownSeconds))
     }
     
     init(from decoder: Decoder) throws {
@@ -139,11 +182,17 @@ struct MiloConfig: Codable {
         conversationBufferSize = max(1, try container.decodeIfPresent(Int.self, forKey: .conversationBufferSize) ?? defaults.conversationBufferSize)
         agentId = try container.decodeIfPresent(String.self, forKey: .agentId) ?? defaults.agentId
         maxTokens = max(1, try container.decodeIfPresent(Int.self, forKey: .maxTokens) ?? defaults.maxTokens)
+        relayOnlyMode = try container.decodeIfPresent(Bool.self, forKey: .relayOnlyMode) ?? defaults.relayOnlyMode
+        adaptiveMaxTokensEnabled = try container.decodeIfPresent(Bool.self, forKey: .adaptiveMaxTokensEnabled) ?? defaults.adaptiveMaxTokensEnabled
+        adaptiveMaxTokensFloor = max(1, min(maxTokens, try container.decodeIfPresent(Int.self, forKey: .adaptiveMaxTokensFloor) ?? defaults.adaptiveMaxTokensFloor))
+        speculativePrewarmEnabled = try container.decodeIfPresent(Bool.self, forKey: .speculativePrewarmEnabled) ?? defaults.speculativePrewarmEnabled
+        speculativePrewarmMinWords = max(1, try container.decodeIfPresent(Int.self, forKey: .speculativePrewarmMinWords) ?? defaults.speculativePrewarmMinWords)
+        speculativePrewarmCooldownSeconds = max(10, min(600, try container.decodeIfPresent(Double.self, forKey: .speculativePrewarmCooldownSeconds) ?? defaults.speculativePrewarmCooldownSeconds))
     }
 
     static var configPath: URL {
         FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".openclaw/milo-overlay.json")
+            .appendingPathComponent(".openclaw/clawIsland.json")
     }
 
     /// Load config from disk, falling back to defaults

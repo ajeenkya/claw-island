@@ -5,13 +5,13 @@
     <key>LSUIElement</key>
     <true/>
     <key>NSMicrophoneUsageDescription</key>
-    <string>MiloOverlay needs microphone access to record voice commands for OpenClaw.</string>
+    <string>clawIsland needs microphone access to record voice commands for OpenClaw.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
-    <string>MiloOverlay uses speech recognition to transcribe voice commands.</string>
+    <string>clawIsland uses speech recognition to transcribe voice commands.</string>
     <key>CFBundleName</key>
-    <string>MiloOverlay</string>
+    <string>clawIsland</string>
     <key>CFBundleIdentifier</key>
-    <string>com.openclaw.milo-overlay</string>
+    <string>com.openclaw.clawIsland</string>
     <key>CFBundleVersion</key>
     <string>0.1.0</string>
 </dict>

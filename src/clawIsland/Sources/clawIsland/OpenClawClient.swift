@@ -228,7 +228,7 @@ class OpenClawClient {
             // Add debug info to help troubleshoot routing
             miloLog("🔍 API Request - sessionKey: \(sessionKey), agentId: \(config.agentId), model: \(config.model)")
         } else {
-            body["user"] = "milo-overlay"
+            body["user"] = "clawIsland"
         }
 
         let jsonData = try JSONSerialization.data(withJSONObject: body)
@@ -262,7 +262,7 @@ class OpenClawClient {
     // MARK: - Voice Mode Hint
     
     private let voiceSystemHint = """
-    You are responding via a voice overlay app (MiloOverlay). The user spoke to you and will hear \
+    You are responding via a voice overlay app (clawIsland). The user spoke to you and will hear \
     your response via TTS. Keep responses concise and conversational — aim for 1-3 sentences unless \
     the question requires more detail. Don't use markdown formatting, bullet points, or code blocks \
     — just natural speech. Don't narrate tool usage ("Let me check...") — just do it and give the answer.

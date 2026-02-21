@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CONFIG_FILE="$HOME/.openclaw/milo-overlay.json"
-KOKORO_HOME="$HOME/.openclaw/milo-overlay"
+CONFIG_FILE="$HOME/.openclaw/clawIsland.json"
+KOKORO_HOME="$HOME/.openclaw/clawIsland"
 VENV_DIR="$KOKORO_HOME/kokoro-venv"
 PYTHON_BIN="$VENV_DIR/bin/python3"
 KOKORO_SCRIPT_SRC="$ROOT/scripts/kokoro_tts.py"
@@ -111,4 +111,4 @@ rm -f "$OUT"
 
 echo "✅ Kokoro is installed and configured."
 echo "   Config: $CONFIG_FILE"
-echo "   Next: relaunch MiloOverlay.app"
+echo "   Next: relaunch clawIsland.app"

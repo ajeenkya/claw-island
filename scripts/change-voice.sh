@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# MiloOverlay Voice Changer
+# clawIsland Voice Changer
 # Quick script to change TTS voice
 
-CONFIG_FILE="$HOME/.openclaw/milo-overlay.json"
+CONFIG_FILE="$HOME/.openclaw/clawIsland.json"
 
 # Check if config exists
 if [ ! -f "$CONFIG_FILE" ]; then
@@ -83,7 +83,7 @@ if [[ $confirm =~ ^[Yy]$ ]]; then
     jq --arg voice "$VOICE" '.ttsVoice = $voice' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp" && mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
     
     echo "✅ Voice changed to: $VOICE"
-    echo "🔄 Restart MiloOverlay for the change to take effect"
+    echo "🔄 Restart clawIsland for the change to take effect"
 else
     echo "❌ Voice change cancelled"
 fi

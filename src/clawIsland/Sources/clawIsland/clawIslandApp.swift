@@ -6,7 +6,7 @@ import QuartzCore
 
 func miloLog(_ msg: String) {
     let line = "[\(Date())] \(msg)\n"
-    let logPath = NSHomeDirectory() + "/.openclaw/milo-overlay.log"
+    let logPath = NSHomeDirectory() + "/.openclaw/clawIsland.log"
     if let handle = FileHandle(forWritingAtPath: logPath) {
         handle.seekToEndOfFile()
         handle.write(line.data(using: .utf8)!)
@@ -19,7 +19,7 @@ func miloLog(_ msg: String) {
 }
 
 @main
-struct MiloOverlayApp: App {
+struct clawIslandApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     var body: some Scene {
         Settings { EmptyView() }
@@ -76,13 +76,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var hudWindow: HUDWindow?
     private var hudHostView: NSHostingView<RecordingHUD>?
     private let hudModel = HUDModel()
-    private let collapsedHudSize = NSSize(width: 190, height: 34)
+    private let collapsedHudSize = NSSize(width: 400, height: 34)
+    private let activeHudWidth: CGFloat = 400
     private var lastMeasuredHUDSize = NSSize(width: 0, height: 0)
-    private var shouldStageHUDTransition = false
-    private let hudExpandDuration: TimeInterval = 0.24
-    private let hudSettleDuration: TimeInterval = 0.17
-    private let hudResizeDuration: TimeInterval = 0.22
-    private let hudContentFadeDuration: TimeInterval = 0.14
+    private let hudShowFadeDuration: TimeInterval = 0.10
+    private let hudHideFadeDuration: TimeInterval = 0.10
     private var openedAccessibilitySettingsThisLaunch = false
     private var transcript: String = ""
     private var pendingSelectionRewrite: PendingSelectionRewrite?
@@ -94,16 +92,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private var state: MiloState = .idle {
         didSet {
-            if oldValue.description != state.description, oldValue != .idle, state != .idle {
-                shouldStageHUDTransition = true
-            }
             updateMenuBarIcon()
             updateHUD()
         }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        miloLog("🚀 MiloOverlay launched")
+        miloLog("🚀 clawIsland launched")
         requestPermissions()
         setupMenuBar()
         setupHotkey()
@@ -167,7 +162,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(voiceMenuItem)
         
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit MiloOverlay", action: #selector(quitApp), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "Quit clawIsland", action: #selector(quitApp), keyEquivalent: "q"))
         statusItem.menu = menu
     }
 
@@ -204,93 +199,52 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let hostView = hudHostView else { return }
         
         if !window.isVisible {
-            shouldStageHUDTransition = false
-            let collapsedFrame = hudFrame(for: collapsedHudSize)
-            
-            // Stage 1: render compact notch before expansion.
-            hudModel.showContent = false
-            hudModel.state = .idle
-            hudModel.transcript = ""
-            hudModel.audioLevel = 0
-            hostView.layoutSubtreeIfNeeded()
-            
-            window.alphaValue = 1
-            window.setFrame(collapsedFrame, display: true)
-            window.orderFrontRegardless()
-            
-            // Stage 2: morph notch into the live state size.
+            // Keep geometry fixed (no y/height animation) to avoid top-edge gap artifacts.
             applyHUDModel()
             let targetFrame = hudFrame(for: measuredHUDSize(hostView: hostView))
-            let overshootFrame = NSRect(
-                x: targetFrame.origin.x - (targetFrame.width * 0.008),
-                y: targetFrame.origin.y - (targetFrame.height * 0.008),
-                width: targetFrame.width * 1.016,
-                height: targetFrame.height * 1.016
-            )
-            
+            window.alphaValue = 0
+            window.setFrame(targetFrame, display: true)
+            window.orderFrontRegardless()
             NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = hudExpandDuration
-                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                window.animator().setFrame(overshootFrame, display: true)
-            } completionHandler: {
-                NSAnimationContext.runAnimationGroup { settle in
-                    settle.duration = self.hudSettleDuration
-                    settle.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                    window.animator().setFrame(targetFrame, display: true)
-                } completionHandler: { [weak self] in
-                    Task { @MainActor in
-                        guard let self = self else { return }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
-                            withAnimation(.easeOut(duration: self.hudContentFadeDuration)) {
-                                self.hudModel.showContent = true
-                            }
-                        }
-                    }
-                }
+                ctx.duration = hudShowFadeDuration
+                ctx.timingFunction = CAMediaTimingFunction(name: .linear)
+                window.animator().alphaValue = 1.0
             }
         } else {
-            if !hudModel.showContent {
-                hudModel.showContent = true
-            }
-            updateHUDContent(animated: true)
+            updateHUDContent(animated: false)
             window.orderFrontRegardless()
         }
     }
     
     private func hideHUD() {
         guard let window = hudWindow, let hostView = hudHostView else { return }
-        let currentFrame = window.frame
-        let collapsedFrame = hudFrame(for: collapsedHudSize)
-        
-        // Collapse visual content into notch before dismissing.
-        hudModel.showContent = false
-        hudModel.state = .idle
-        hudModel.transcript = ""
-        hudModel.audioLevel = 0
-        lastMeasuredHUDSize = NSSize(width: 0, height: 0)
         hostView.layoutSubtreeIfNeeded()
-        
+
         NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.18
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            window.animator().setFrame(collapsedFrame, display: true)
-            window.animator().alphaValue = 1.0
+            ctx.duration = hudHideFadeDuration
+            ctx.timingFunction = CAMediaTimingFunction(name: .linear)
+            window.animator().alphaValue = 0.0
         }) {
-            window.orderOut(nil)
-            window.alphaValue = 1
-            window.setFrame(currentFrame, display: false)
+            Task { @MainActor in
+                window.orderOut(nil)
+                window.alphaValue = 1
+                self.hudModel.state = .idle
+                self.hudModel.transcript = ""
+                self.hudModel.audioLevel = 0
+                self.lastMeasuredHUDSize = NSSize(width: 0, height: 0)
+            }
         }
     }
     
     private func updateHUD() {
         switch state {
         case .idle:
-            shouldStageHUDTransition = false
             hideHUD()
             transcript = ""
         case .recording, .processing, .speaking:
             showHUD()
-            updateHUDContent(animated: true)
+            // Keep geometry stable while visible: only animate on show and hide.
+            updateHUDContent(animated: false)
         }
     }
     
@@ -305,38 +259,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         lastMeasuredHUDSize = measuredSize
         
         let targetFrame = hudFrame(for: measuredSize)
-        
-        if animated, window.isVisible {
-            let shouldStageTransitionNow = shouldStageHUDTransition
-            shouldStageHUDTransition = false
-            
-            if shouldStageTransitionNow && hudModel.showContent {
-                withAnimation(.easeOut(duration: 0.08)) {
-                    hudModel.showContent = false
-                }
-                
-                NSAnimationContext.runAnimationGroup { ctx in
-                    ctx.duration = hudResizeDuration
-                    ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                    window.animator().setFrame(targetFrame, display: true)
-                } completionHandler: { [weak self] in
-                    Task { @MainActor in
-                        guard let self = self else { return }
-                        withAnimation(.easeOut(duration: self.hudContentFadeDuration)) {
-                            self.hudModel.showContent = true
-                        }
-                    }
-                }
-            } else {
-                NSAnimationContext.runAnimationGroup { ctx in
-                    ctx.duration = hudResizeDuration
-                    ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                    window.animator().setFrame(targetFrame, display: true)
-                }
-            }
-        } else {
-            window.setFrame(targetFrame, display: true)
-        }
+
+        // CRITICAL UX GUARDRAIL:
+        // Never animate HUD frame geometry again. Geometry interpolation can create
+        // a visible top-edge gap; we only animate opacity on show/hide.
+        window.setFrame(targetFrame, display: true)
     }
     
     private func hudFrame(for size: NSSize) -> NSRect {
@@ -364,7 +291,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func measuredHUDSize(hostView: NSHostingView<RecordingHUD>) -> NSSize {
         hostView.layoutSubtreeIfNeeded()
         let fittingSize = hostView.fittingSize
-        return NSSize(width: max(fittingSize.width, 260), height: max(fittingSize.height, 60))
+        let width = (state == .idle) ? collapsedHudSize.width : activeHudWidth
+        let minHeight: CGFloat = (state == .idle) ? collapsedHudSize.height : 60
+        return NSSize(width: width, height: max(fittingSize.height, minHeight))
     }
 
     // MARK: - Hotkey
@@ -665,19 +594,44 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func isSelectionRewriteRequest(_ value: String) -> Bool {
-        VoiceCommandIntents.isSelectionRewriteRequest(value)
+        let lower = value.lowercased()
+        let keywords = [
+            "rewrite", "rephrase", "polish", "improve this",
+            "make this shorter", "shorter", "friendlier",
+            "professional tone", "change the tone", "make this better"
+        ]
+        return keywords.contains { lower.contains($0) }
     }
     
     private func isDirectApplyRewriteRequest(_ value: String) -> Bool {
-        VoiceCommandIntents.isDirectApplyRewriteRequest(value)
+        let lower = value.lowercased()
+        let directApplyPhrases = [
+            "and apply",
+            "apply it",
+            "replace it",
+            "rewrite and apply",
+            "rewrite and replace",
+            "skip preview",
+            "no preview",
+            "directly apply",
+            "just apply"
+        ]
+        return directApplyPhrases.contains { lower.contains($0) }
     }
     
     private func isApplyConfirmation(_ value: String) -> Bool {
-        VoiceCommandIntents.isApplyConfirmation(value)
+        let normalized = value.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let explicit = [
+            "apply", "yes", "yes apply", "confirm", "go ahead",
+            "do it", "replace it", "approved"
+        ]
+        return explicit.contains(normalized)
     }
     
     private func isCancelPendingRewrite(_ value: String) -> Bool {
-        VoiceCommandIntents.isCancelPendingRewrite(value)
+        let normalized = value.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let cancelWords = ["cancel", "never mind", "dismiss", "skip that"]
+        return cancelWords.contains(normalized)
     }
     
     private func buildSelectionRewritePrompt(request: String, selection: String) -> String {
@@ -695,7 +649,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func extractRewriteText(from response: String) -> String {
-        VoiceCommandIntents.extractRewriteText(from: response)
+        var cleaned = response.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned.hasPrefix("```") {
+            cleaned = cleaned.replacingOccurrences(of: "```", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        if cleaned.lowercased().hasPrefix("rewritten:") {
+            cleaned = String(cleaned.dropFirst("rewritten:".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        if cleaned.lowercased().hasPrefix("revised:") {
+            cleaned = String(cleaned.dropFirst("revised:".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        return cleaned
     }
     
     private func speakThenReturnToIdle(_ message: String) async {
@@ -818,7 +786,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
             // Update HUD with final transcript
             transcript = text
-            updateHUDContent(animated: true)
+            updateHUDContent(animated: false)
             
             let runtimeContext = desktopRuntimeContext()
             miloLog("🖥️ Desktop context: \(runtimeContext)")
@@ -1155,7 +1123,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             
             menu.addItem(.separator())
-            let hint = NSMenuItem(title: "Custom via ~/.openclaw/milo-overlay.json → kokoroVoice", action: nil, keyEquivalent: "")
+            let hint = NSMenuItem(title: "Custom via ~/.openclaw/clawIsland.json → kokoroVoice", action: nil, keyEquivalent: "")
             hint.isEnabled = false
             menu.addItem(hint)
             return

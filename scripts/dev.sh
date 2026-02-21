@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
-cd "$(dirname "$0")/../src/MiloOverlay"
-echo "Building MiloOverlay (debug)..."
+cd "$(dirname "$0")/../src/clawIsland"
+echo "Building clawIsland (debug)..."
 swift build
 echo "Running..."
-exec .build/debug/MiloOverlay
+exec .build/debug/clawIsland

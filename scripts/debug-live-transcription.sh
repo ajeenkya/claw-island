@@ -14,13 +14,13 @@ echo ""
 # Check microphone permission
 echo "🎤 Microphone Permission Check:"
 echo "   Run: System Preferences → Security & Privacy → Microphone"
-echo "   Make sure MiloOverlay is enabled"
+echo "   Make sure clawIsland is enabled"
 echo ""
 
 # Check speech recognition permission  
 echo "🗣️  Speech Recognition Permission:"
 echo "   Run: System Preferences → Security & Privacy → Speech Recognition"
-echo "   Make sure MiloOverlay is enabled"
+echo "   Make sure clawIsland is enabled"
 echo ""
 
 # Check available audio devices
@@ -36,10 +36,10 @@ echo ""
 echo "🎯 Common Issues & Solutions:"
 echo ""
 echo "1. **No microphone permission**"
-echo "   → System Preferences → Security & Privacy → Microphone → Enable MiloOverlay"
+echo "   → System Preferences → Security & Privacy → Microphone → Enable clawIsland"
 echo ""
 echo "2. **No speech recognition permission**" 
-echo "   → System Preferences → Security & Privacy → Speech Recognition → Enable MiloOverlay"
+echo "   → System Preferences → Security & Privacy → Speech Recognition → Enable clawIsland"
 echo ""
 echo "3. **SFSpeechRecognizer unavailable**"
 echo "   → macOS 10.15+ required, check macOS version above"
@@ -50,12 +50,12 @@ echo "   → Ensure good microphone positioning"
 echo ""
 echo "5. **Audio engine conflicts**"
 echo "   → Close other audio apps (Zoom, Discord, etc.)"
-echo "   → Restart MiloOverlay if needed"
+echo "   → Restart clawIsland if needed"
 echo ""
 
-CONFIG_FILE="$HOME/.openclaw/milo-overlay.json"
+CONFIG_FILE="$HOME/.openclaw/clawIsland.json"
 if [ -f "$CONFIG_FILE" ]; then
-    echo "⚙️  Current MiloOverlay Config:"
+    echo "⚙️  Current clawIsland Config:"
     cat "$CONFIG_FILE" | jq .
 else
     echo "❌ Config file not found: $CONFIG_FILE"

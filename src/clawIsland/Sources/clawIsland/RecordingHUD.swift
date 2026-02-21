@@ -14,6 +14,58 @@ private enum OC {
     static let textMuted = Color.white.opacity(0.4)
 }
 
+private enum OCTypography {
+    static let size: CGFloat = 14
+
+    private static let regularCandidates: [String] = [
+        "Airbnb Cereal App",
+        "Airbnb Cereal",
+        "Cereal App",
+        "Cereal",
+        "AirbnbCerealApp-Book",
+        "AirbnbCerealApp-Regular",
+        "Airbnb Cereal App Book",
+        "Airbnb Cereal App Regular",
+        "Pragmatica",
+        "PragmataPro",
+        "PragmataPro-Regular",
+        "Pragmata Pro"
+    ]
+
+    private static let boldCandidates: [String] = [
+        "AirbnbCerealApp-Bold",
+        "Airbnb Cereal App Bold",
+        "Airbnb Cereal Bold",
+        "Cereal App Bold",
+        "Cereal-Bold",
+        "Pragmatica Bold",
+        "PragmataPro-Bold",
+        "Pragmata Pro Bold"
+    ]
+
+    private static func firstInstalled(from candidates: [String]) -> String? {
+        for name in candidates where NSFont(name: name, size: size) != nil {
+            return name
+        }
+        return nil
+    }
+
+    static func text(bold: Bool = false) -> Font {
+        if bold {
+            if let boldName = firstInstalled(from: boldCandidates) {
+                return .custom(boldName, size: size)
+            }
+            if let regularName = firstInstalled(from: regularCandidates) {
+                return .custom(regularName, size: size).weight(.bold)
+            }
+        } else if let regularName = firstInstalled(from: regularCandidates) {
+            return .custom(regularName, size: size)
+        }
+
+        return .system(size: size, weight: bold ? .bold : .regular)
+    }
+}
+
 @MainActor
 final class HUDModel: ObservableObject {
     @Published var state: MiloState = .idle
@@ -39,9 +91,9 @@ struct RecordingHUD: View {
     private var isExpanded: Bool { state != .idle }
     private var expandedWidth: CGFloat {
         switch state {
-        case .recording: return 640
-        case .processing: return 620
-        case .speaking: return 860
+        case .recording: return 400
+        case .processing: return 400
+        case .speaking: return 400
         case .idle: return notchWidth
         }
     }
@@ -85,8 +137,6 @@ struct RecordingHUD: View {
                 glowPulse = true
             }
         }
-        .animation(.interactiveSpring(response: 0.42, dampingFraction: 0.86, blendDuration: 0.2), value: isExpanded)
-        .animation(.easeOut(duration: 0.16), value: model.showContent)
     }
     
     @ViewBuilder
@@ -109,7 +159,7 @@ struct RecordingHUD: View {
                         .modifier(PulseModifier())
                     
                     Text("Listening")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(OCTypography.text(bold: true))
                         .foregroundColor(OC.textPrimary.opacity(0.9))
                     
                     Spacer()
@@ -128,7 +178,7 @@ struct RecordingHUD: View {
                 // Transcript (if available)
                 if !transcript.isEmpty {
                     Text(transcript)
-                        .font(.system(size: 13, weight: .regular, design: .rounded))
+                        .font(OCTypography.text())
                         .foregroundColor(OC.textPrimary.opacity(0.9))
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
@@ -145,7 +195,7 @@ struct RecordingHUD: View {
                         .frame(width: 16, height: 16)
                     
                     Text("Thinking")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(OCTypography.text(bold: true))
                         .foregroundColor(OC.textPrimary.opacity(0.88))
                     
                     Spacer()
@@ -157,7 +207,7 @@ struct RecordingHUD: View {
                 
                 if !transcript.isEmpty {
                     Text(transcript)
-                        .font(.system(size: 12, weight: .regular, design: .rounded))
+                        .font(OCTypography.text())
                         .foregroundColor(OC.textMuted)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
@@ -174,13 +224,13 @@ struct RecordingHUD: View {
                         .frame(width: 20, height: 14)
                     
                     Text("Milo")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .font(OCTypography.text(bold: true))
                         .foregroundColor(OC.textPrimary.opacity(0.95))
                     
                     Spacer()
                     
                     Text("hotkey to stop")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(OCTypography.text())
                         .foregroundColor(OC.textMuted)
                 }
                 .padding(.top, 12)
@@ -188,12 +238,12 @@ struct RecordingHUD: View {
                 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Now speaking")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .font(OCTypography.text(bold: true))
                         .foregroundColor(OC.textMuted.opacity(0.9))
                         .textCase(.uppercase)
                     
                     Text(response.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "..." : response)
-                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .font(OCTypography.text(bold: true))
                         .foregroundColor(OC.textPrimary.opacity(0.96))
                         .multilineTextAlignment(.leading)
                         .lineLimit(5)

@@ -10,7 +10,7 @@ Thanks for contributing.
    - `ffmpeg` (`brew install ffmpeg`)
 2. Build:
    ```bash
-   cd src/MiloOverlay
+   cd src/clawIsland
    swift build -c debug
    ```
 3. Run:
@@ -24,7 +24,7 @@ Thanks for contributing.
 Run before opening a PR:
 
 ```bash
-cd src/MiloOverlay
+cd src/clawIsland
 swift test
 swift build -c debug
 ```

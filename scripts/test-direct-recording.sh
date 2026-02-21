@@ -1,19 +1,19 @@
 #!/bin/bash
 
-echo "🧪 Direct MiloOverlay Recording Test"
+echo "🧪 Direct clawIsland Recording Test"
 echo ""
 
-# Kill any existing MiloOverlay
-echo "🔄 Stopping existing MiloOverlay..."
-pkill MiloOverlay 2>/dev/null
+# Kill any existing clawIsland
+echo "🔄 Stopping existing clawIsland..."
+pkill clawIsland 2>/dev/null
 sleep 1
 
-echo "🚀 Starting MiloOverlay in foreground (you'll see all logs)..."
+echo "🚀 Starting clawIsland in foreground (you'll see all logs)..."
 echo "Try pressing fn key or using menu bar toggle"
 echo "Press Ctrl+C to stop"
 echo ""
 
-cd "$(dirname "$0")/../src/MiloOverlay"
+cd "$(dirname "$0")/../src/clawIsland"
 
 # Run in foreground so we see all output
-exec ./.build/release/MiloOverlay
+exec ./.build/release/clawIsland

@@ -2,18 +2,18 @@
 import PackageDescription
 
 let package = Package(
-    name: "MiloOverlay",
+    name: "clawIsland",
     platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(
-            name: "MiloOverlay",
-            path: "Sources/MiloOverlay",
+            name: "clawIsland",
+            path: "Sources/clawIsland",
             resources: [.copy("../../Resources/Info.plist")]
         ),
         .testTarget(
-            name: "MiloOverlayTests",
-            dependencies: ["MiloOverlay"],
-            path: "Tests/MiloOverlayTests"
+            name: "clawIslandTests",
+            dependencies: ["clawIsland"],
+            path: "Tests/clawIslandTests"
         )
     ]
 )

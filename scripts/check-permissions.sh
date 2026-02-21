@@ -1,9 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-CLIENT_FILTER="(client LIKE '%MiloOverlay%' OR client LIKE '%VyomOverlay%' OR client='com.openclaw.milo-overlay' OR client='com.openclaw.vyom-overlay')"
+CLIENT_FILTER="(client LIKE '%clawIsland%' OR client LIKE '%VyomOverlay%' OR client='com.openclaw.clawIsland' OR client='com.openclaw.vyom-overlay')"
 
-echo "🔐 Checking MiloOverlay Permissions"
+echo "🔐 Checking clawIsland Permissions"
 echo ""
 
 # Check current permissions using tccutil if available
@@ -38,8 +38,8 @@ echo "📋 Manual Permission Check:"
 echo "1. Open System Preferences"
 echo "2. Go to Security & Privacy → Privacy"
 echo "3. Check both:"
-echo "   • Microphone → Make sure MiloOverlay is checked"
-echo "   • Speech Recognition → Make sure MiloOverlay is checked"
+echo "   • Microphone → Make sure clawIsland is checked"
+echo "   • Speech Recognition → Make sure clawIsland is checked"
 echo ""
 
 # Test basic audio recording
@@ -56,5 +56,8 @@ echo ""
 echo "🚀 To fix live transcription:"
 echo "1. Grant microphone permission if needed"
 echo "2. Grant speech recognition permission if needed"  
-echo "3. Restart MiloOverlay"
+echo "3. Restart clawIsland"
 echo "4. Test with fn key - speak clearly and loudly"
+echo ""
+echo "🖥️ For screen capture issues (OpenClaw screenshots), run:"
+echo "   ./scripts/screen-recording-doctor.sh"

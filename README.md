@@ -4,7 +4,7 @@
 
 A macOS menu-bar voice overlay for OpenClaw with notch-style HUD, push-to-talk hotkey, local speech recognition fallback, and low-latency TTS.
 
-Internal app/binary name remains `MiloOverlay`.
+Internal app/binary name remains `clawIsland`.
 
 ## Features
 
@@ -13,7 +13,7 @@ Internal app/binary name remains `MiloOverlay`.
 - Live speech recognition with Whisper fallback
 - OpenClaw chat completions routing (agent + session aware)
 - Sentence-level TTS captions while speaking
-- Selected-text rewrite flow with explicit apply confirmation
+- Relay-only by default: transcripts are forwarded directly to OpenClaw
 - TTS engines:
   - `system` (Apple local voices via `say`)
   - `kokoro` (local open-source Kokoro-82M)
@@ -28,9 +28,9 @@ Internal app/binary name remains `MiloOverlay`.
 ## Build and Run
 
 ```bash
-cd src/MiloOverlay
+cd src/clawIsland
 swift build -c release
-.build/release/MiloOverlay
+.build/release/clawIsland
 ```
 
 Or from repo root:
@@ -44,13 +44,13 @@ Or from repo root:
 
 ```bash
 ./scripts/install-app.sh
-open -a "$HOME/Desktop/MiloOverlay.app"
+open -a "$HOME/Desktop/clawIsland.app"
 ```
 
 ## Tests
 
 ```bash
-cd src/MiloOverlay
+cd src/clawIsland
 swift test
 ```
 
@@ -61,6 +61,13 @@ Grant these in **System Settings → Privacy & Security**:
 - Microphone
 - Speech Recognition
 - Accessibility (for global hotkey)
+- Screen Recording (for screenshot/screen context)
+
+Quick helper:
+
+```bash
+./scripts/screen-recording-doctor.sh
+```
 
 ## Kokoro Setup (Local Open-Source TTS)
 
@@ -68,11 +75,11 @@ Grant these in **System Settings → Privacy & Security**:
 ./scripts/install-kokoro.sh
 ```
 
-This creates a dedicated venv at `~/.openclaw/milo-overlay/kokoro-venv`, installs Kokoro, and updates config.
+This creates a dedicated venv at `~/.openclaw/clawIsland/kokoro-venv`, installs Kokoro, and updates config.
 
 ## Config
 
-Config file: `~/.openclaw/milo-overlay.json`
+Config file: `~/.openclaw/clawIsland.json`
 
 Example fields:
 
@@ -83,21 +90,19 @@ Example fields:
   "kokoroVoice": "af_heart",
   "kokoroSpeed": 1.0,
   "kokoroLangCode": "a",
-  "kokoroPythonPath": "~/.openclaw/milo-overlay/kokoro-venv/bin/python3",
-  "kokoroScriptPath": "~/.openclaw/milo-overlay/kokoro_tts.py",
+  "kokoroPythonPath": "~/.openclaw/clawIsland/kokoro-venv/bin/python3",
+  "kokoroScriptPath": "~/.openclaw/clawIsland/kokoro_tts.py",
   "agentId": "voice",
-  "sessionKey": "agent:voice:main"
+  "sessionKey": "agent:voice:main",
+  "relayOnlyMode": true
 }
 ```
 
-## Selected-Text Rewrite Flow
+## Optional Local Action Helpers
 
-When you ask Milo to rewrite text (for example: "rewrite this to sound friendlier"), the app now:
+If you explicitly set `"relayOnlyMode": false`, Milo can run local overlay helpers (for example selection rewrite and direct type/send shortcuts) before forwarding.
 
-1. Reads the current selection from the active app.
-2. Asks OpenClaw to generate a rewrite preview.
-3. Speaks the preview and waits for confirmation.
-4. Applies only after you say `apply`.
+Default behavior is relay-only, which keeps action execution responsibility inside OpenClaw.
 
 Bridge script (included in this repo): `desktop-actions/milo_bridge.py`
 
@@ -106,7 +111,7 @@ Bridge script (included in this repo): `desktop-actions/milo_bridge.py`
 - This repo contains app code and local scripts only.
 - Do not commit private tokens or user-specific config values.
 - Recommended first publish pass:
-  - scrub `~/.openclaw/milo-overlay.json`
+  - scrub `~/.openclaw/clawIsland.json`
   - rotate any local gateway token previously used in development
 
 ## Contributing

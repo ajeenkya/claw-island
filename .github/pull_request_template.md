@@ -5,8 +5,8 @@
 
 ## Validation
 
-- [ ] `cd src/MiloOverlay && swift build -c debug`
-- [ ] `cd src/MiloOverlay && swift test`
+- [ ] `cd src/clawIsland && swift build -c debug`
+- [ ] `cd src/clawIsland && swift test`
 - [ ] Manual smoke test completed (overlay trigger + response + exit)
 
 ## Risk
