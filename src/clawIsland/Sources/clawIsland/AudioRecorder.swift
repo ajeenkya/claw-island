@@ -128,14 +128,25 @@ class AudioRecorder: ObservableObject {
         }
         
         let rms = sqrt(sumSquares / Float(max(sampleCount, 1)))
-        // Amplify and smooth
-        let newLevel = min(rms * 5.0, 1.0)
+
+        // Map RMS to a perceptual 0-1 range.
+        // Typical speech RMS can look numerically small (~0.005-0.05), which made
+        // the old linear mapping appear visually flat in the HUD visualizer.
+        let clampedRMS = max(rms, 0.000001)
+        let db = 20.0 * log10(clampedRMS) // usually around -60 dB (quiet) to -10 dB (loud speech)
+        let dbNormalized = (db + 55.0) / 45.0 // -55 dB -> 0, -10 dB -> 1
+        let linearFallback = min(rms * 5.0, 1.0) * 0.35
+        var mappedLevel = max(dbNormalized, linearFallback)
+        mappedLevel = min(max(mappedLevel, 0.0), 1.0)
+
+        // Small noise gate to keep true silence at rest.
+        let newLevel: Float = mappedLevel < 0.03 ? 0.0 : mappedLevel
         
-        // Smooth: fast attack, slower decay
+        // Smooth: fast attack, moderate decay (keeps motion responsive while stable).
         if newLevel > audioLevel {
-            audioLevel = audioLevel + (newLevel - audioLevel) * 0.7
+            audioLevel = audioLevel + (newLevel - audioLevel) * 0.78
         } else {
-            audioLevel = audioLevel + (newLevel - audioLevel) * 0.25
+            audioLevel = audioLevel + (newLevel - audioLevel) * 0.32
         }
     }
 }

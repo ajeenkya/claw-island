@@ -381,7 +381,8 @@ struct AudioVisualizerView: View {
     
     private func updateBars() {
         phase += 0.12
-        let base = CGFloat(min(max(level * 4.0, 0.02), 1.0))
+        // Use a gentler gain curve so the visualizer does not pin at max height.
+        let base = CGFloat(min(max(level * 1.35, 0.06), 1.0))
         let count = Double(bars.count)
         let center = count / 2.0
         
