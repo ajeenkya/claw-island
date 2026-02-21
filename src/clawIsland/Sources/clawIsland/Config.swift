@@ -195,13 +195,29 @@ struct MiloConfig: Codable {
             .appendingPathComponent(".openclaw/clawIsland.json")
     }
 
+    static var legacyConfigPaths: [URL] {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        return [
+            home.appendingPathComponent(".openclaw/milo-overlay.json"),
+            home.appendingPathComponent(".openclaw/claw-island.json"),
+            home.appendingPathComponent(".openclaw/vyom-overlay.json")
+        ]
+    }
+
     /// Load config from disk, falling back to defaults
     static func load() -> MiloConfig {
-        guard let data = try? Data(contentsOf: configPath),
-              let config = try? JSONDecoder().decode(MiloConfig.self, from: data) else {
-            return defaultConfig
+        let decoder = JSONDecoder()
+        let candidatePaths = [configPath] + legacyConfigPaths
+
+        for path in candidatePaths {
+            guard let data = try? Data(contentsOf: path),
+                  let config = try? decoder.decode(MiloConfig.self, from: data) else {
+                continue
+            }
+            return config
         }
-        return config
+
+        return defaultConfig
     }
 
     /// Save current config to disk
