@@ -227,7 +227,7 @@ struct ClawConfig: Codable {
     static var legacyConfigPaths: [URL] {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return [
-            home.appendingPathComponent(".openclaw/milo-overlay.json"),
+            home.appendingPathComponent(".openclaw/claw-island-overlay.json"),
             home.appendingPathComponent(".openclaw/claw-island.json"),
             home.appendingPathComponent(".openclaw/vyom-overlay.json")
         ]

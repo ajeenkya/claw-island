@@ -169,7 +169,7 @@ rm ~/.openclaw/clawIsland.json
 - **Primary config:** `~/.openclaw/clawIsland.json`
 - **Example config:** `example-config.json` (in repo root)
 - **Legacy config paths** (auto-detected):
-  - `~/.openclaw/milo-overlay.json`
+  - `~/.openclaw/claw-island-overlay.json`
   - `~/.openclaw/claw-island.json`
   - `~/.openclaw/vyom-overlay.json`
 
