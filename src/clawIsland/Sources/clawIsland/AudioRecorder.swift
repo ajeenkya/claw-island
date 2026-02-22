@@ -114,8 +114,9 @@ class AudioRecorder: ObservableObject {
     
     private func startLevelMonitor() {
         levelTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            guard let strongSelf = self else { return }
             Task { @MainActor in
-                self?.readCurrentLevel()
+                strongSelf.readCurrentLevel()
             }
         }
     }

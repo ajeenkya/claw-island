@@ -336,21 +336,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
             // Update HUD with audio levels + live transcript ~30fps
             hudUpdateTimer = Timer.scheduledTimer(withTimeInterval: 0.033, repeats: true) { [weak self] _ in
+                guard let strongSelf = self else { return }
                 Task { @MainActor in
-                    guard let self = self else { return }
                     // Feed live transcript to HUD
-                    let partial = self.liveTranscriber.partialText
+                    let partial = strongSelf.liveTranscriber.partialText
                     if !partial.isEmpty {
-                        self.ingestLivePartial(partial)
+                        strongSelf.ingestLivePartial(partial)
                     }
-                    self.updateHUDContent(animated: false)
+                    strongSelf.updateHUDContent(animated: false)
                 }
             }
             
             // Auto-stop after max duration
             recordingTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(config.maxRecordingSeconds), repeats: false) { [weak self] _ in
+                guard let strongSelf = self else { return }
                 Task { @MainActor in
-                    self?.stopRecording()
+                    strongSelf.stopRecording()
                 }
             }
         } catch {
