@@ -3,7 +3,7 @@ set -euo pipefail
 
 VOICE_PROFILE="${VOICE_PROFILE:-voice}"
 VOICE_PORT="${VOICE_PORT:-18791}"
-MILO_CONFIG_PATH="${MILO_CONFIG_PATH:-$HOME/.openclaw/clawIsland.json}"
+CLAW_CONFIG_PATH="${CLAW_CONFIG_PATH:-$HOME/.openclaw/clawIsland.json}"
 OPENCLAW_BIN="${OPENCLAW_BIN:-$(command -v openclaw)}"
 OPENCLAW_BIN_DIR="$(dirname "$OPENCLAW_BIN")"
 
@@ -175,7 +175,7 @@ install_and_start_gateway() {
 
 write_claw_island_config() {
   local token="$1"
-  python3 - "$MILO_CONFIG_PATH" "$VOICE_PORT" "$token" <<'PY'
+  python3 - "$CLAW_CONFIG_PATH" "$VOICE_PORT" "$token" <<'PY'
 import json
 import os
 import sys

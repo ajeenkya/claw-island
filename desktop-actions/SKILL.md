@@ -19,32 +19,32 @@ Never apply edits without explicit confirmation.
 ## Bridge Script
 
 Path:
-`/Users/shalmalisohoni/.openclaw/workspace/skills/claw-island-desktop-actions/scripts/claw_bridge.py`
+`$HOME/.openclaw/workspace/skills/claw-island-desktop-actions/scripts/claw_bridge.py`
 
 ### Commands
 
 1. Read desktop context:
 
 ```bash
-python3 /Users/shalmalisohoni/.openclaw/workspace/skills/claw-island-desktop-actions/scripts/claw_bridge.py get_context --json
+python3 "$HOME/.openclaw/workspace/skills/claw-island-desktop-actions/scripts/claw_bridge.py" get_context --json
 ```
 
 2. Get selected text from frontmost app:
 
 ```bash
-python3 /Users/shalmalisohoni/.openclaw/workspace/skills/claw-island-desktop-actions/scripts/claw_bridge.py get_selection --json
+python3 "$HOME/.openclaw/workspace/skills/claw-island-desktop-actions/scripts/claw_bridge.py" get_selection --json
 ```
 
 3. Replace selection with provided text:
 
 ```bash
-printf '%s' "$NEW_TEXT" | python3 /Users/shalmalisohoni/.openclaw/workspace/skills/claw-island-desktop-actions/scripts/claw_bridge.py replace_selection --stdin --json
+printf '%s' "$NEW_TEXT" | python3 "$HOME/.openclaw/workspace/skills/claw-island-desktop-actions/scripts/claw_bridge.py" replace_selection --stdin --json
 ```
 
 4. Insert text at cursor:
 
 ```bash
-printf '%s' "$NEW_TEXT" | python3 /Users/shalmalisohoni/.openclaw/workspace/skills/claw-island-desktop-actions/scripts/claw_bridge.py insert_text --stdin --json
+printf '%s' "$NEW_TEXT" | python3 "$HOME/.openclaw/workspace/skills/claw-island-desktop-actions/scripts/claw_bridge.py" insert_text --stdin --json
 ```
 
 ## Required Interaction Pattern

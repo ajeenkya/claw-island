@@ -22,6 +22,7 @@ All notable changes to this project will be documented in this file.
 - Swift strict concurrency errors in Timer closures (`AudioRecorder`, `clawIslandApp`).
 
 ### Changed
+- Renamed all internal "Milo" references to "ClawIsland" (`MiloConfig` → `ClawConfig`, `MiloState` → `ClawState`, `miloLog` → `clawLog`, `milo_bridge.py` → `claw_bridge.py`, temp file paths, UI labels).
 - Moved rewrite intent parsing logic into a dedicated helper (`VoiceCommandIntents`) for easier testing and maintenance.
 - Added a local deterministic bridge path for explicit type-and-send voice commands so the app no longer relies on model self-report for those actions.
 - Added a response guardrail to avoid claiming unverified desktop actions as completed.

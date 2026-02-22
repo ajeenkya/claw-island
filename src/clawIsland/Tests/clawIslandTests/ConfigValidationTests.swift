@@ -145,6 +145,96 @@ final class ConfigValidationTests: XCTestCase {
         XCTAssertEqual(config.maxRecordingSeconds, 1)
     }
 
+    func testInit_ConversationBufferSizeClamped() {
+        let config = ClawConfig(
+            hotkey: "Option+Space", gatewayUrl: "http://localhost:18789",
+            gatewayToken: nil, screenshotOnTrigger: true,
+            ttsEngine: "system", ttsVoice: nil,
+            kokoroVoice: "af_heart", kokoroSpeed: 1.0,
+            kokoroLangCode: "a", kokoroPythonPath: nil, kokoroScriptPath: nil,
+            whisperModel: "base.en", maxRecordingSeconds: 30, sessionKey: nil,
+            model: "openclaw", conversationBufferSize: -3, agentId: "main",
+            maxTokens: 512, relayOnlyMode: true,
+            adaptiveMaxTokensEnabled: true, adaptiveMaxTokensFloor: 128,
+            speculativePrewarmEnabled: true, speculativePrewarmMinWords: 5,
+            speculativePrewarmCooldownSeconds: 90
+        )
+        XCTAssertEqual(config.conversationBufferSize, 1)
+    }
+
+    func testInit_SpeculativePrewarmCooldownClamped_TooLow() {
+        let config = ClawConfig(
+            hotkey: "Option+Space", gatewayUrl: "http://localhost:18789",
+            gatewayToken: nil, screenshotOnTrigger: true,
+            ttsEngine: "system", ttsVoice: nil,
+            kokoroVoice: "af_heart", kokoroSpeed: 1.0,
+            kokoroLangCode: "a", kokoroPythonPath: nil, kokoroScriptPath: nil,
+            whisperModel: "base.en", maxRecordingSeconds: 30, sessionKey: nil,
+            model: "openclaw", conversationBufferSize: 10, agentId: "main",
+            maxTokens: 512, relayOnlyMode: true,
+            adaptiveMaxTokensEnabled: true, adaptiveMaxTokensFloor: 128,
+            speculativePrewarmEnabled: true, speculativePrewarmMinWords: 5,
+            speculativePrewarmCooldownSeconds: 2
+        )
+        XCTAssertEqual(config.speculativePrewarmCooldownSeconds, 10)
+    }
+
+    func testInit_SpeculativePrewarmCooldownClamped_TooHigh() {
+        let config = ClawConfig(
+            hotkey: "Option+Space", gatewayUrl: "http://localhost:18789",
+            gatewayToken: nil, screenshotOnTrigger: true,
+            ttsEngine: "system", ttsVoice: nil,
+            kokoroVoice: "af_heart", kokoroSpeed: 1.0,
+            kokoroLangCode: "a", kokoroPythonPath: nil, kokoroScriptPath: nil,
+            whisperModel: "base.en", maxRecordingSeconds: 30, sessionKey: nil,
+            model: "openclaw", conversationBufferSize: 10, agentId: "main",
+            maxTokens: 512, relayOnlyMode: true,
+            adaptiveMaxTokensEnabled: true, adaptiveMaxTokensFloor: 128,
+            speculativePrewarmEnabled: true, speculativePrewarmMinWords: 5,
+            speculativePrewarmCooldownSeconds: 999
+        )
+        XCTAssertEqual(config.speculativePrewarmCooldownSeconds, 600)
+    }
+
+    // MARK: - Hotkey format validation
+
+    func testValidate_InvalidHotkeyFormat_CorrectedToDefault() {
+        var config = ClawConfig.defaultConfig
+        config.hotkey = "garbage string"
+        config.validate()
+        XCTAssertEqual(config.hotkey, "Option+Space")
+    }
+
+    func testValidate_ValidFnHotkey_NotChanged() {
+        var config = ClawConfig.defaultConfig
+        config.hotkey = "fn"
+        config.validate()
+        XCTAssertEqual(config.hotkey, "fn")
+    }
+
+    func testValidate_InvalidModifier_CorrectedToDefault() {
+        var config = ClawConfig.defaultConfig
+        config.hotkey = "SuperKey+A"
+        config.validate()
+        XCTAssertEqual(config.hotkey, "Option+Space")
+    }
+
+    // MARK: - ttsEngine case normalization
+
+    func testValidate_TtsEngineNormalized_MixedCase() {
+        var config = ClawConfig.defaultConfig
+        config.ttsEngine = "Kokoro"
+        config.validate()
+        XCTAssertEqual(config.ttsEngine, "kokoro")
+    }
+
+    func testValidate_TtsEngineNormalized_Uppercase() {
+        var config = ClawConfig.defaultConfig
+        config.ttsEngine = "SYSTEM"
+        config.validate()
+        XCTAssertEqual(config.ttsEngine, "system")
+    }
+
     // MARK: - isValidUrl (tested indirectly via validate)
 
     func testValidate_InvalidGatewayUrl_LogsWarning() {

@@ -170,14 +170,23 @@ struct ClawConfig: Codable {
         self.ttsVoice = ttsVoice
         self.kokoroVoice = kokoroVoice
         self.kokoroSpeed = max(0.6, min(1.6, kokoroSpeed))
+        if kokoroSpeed < 0.6 || kokoroSpeed > 1.6 {
+            clawLog("⚠️ \(ConfigError.parameterOutOfBounds("kokoroSpeed", "[0.6, 1.6]").localizedDescription) Clamped to \(self.kokoroSpeed).")
+        }
         self.kokoroLangCode = kokoroLangCode.isEmpty ? "a" : kokoroLangCode
         self.kokoroPythonPath = kokoroPythonPath
         self.kokoroScriptPath = kokoroScriptPath
         self.whisperModel = whisperModel
         self.maxRecordingSeconds = max(1, maxRecordingSeconds)
+        if maxRecordingSeconds < 1 {
+            clawLog("⚠️ \(ConfigError.parameterOutOfBounds("maxRecordingSeconds", ">= 1").localizedDescription) Clamped to \(self.maxRecordingSeconds).")
+        }
         self.sessionKey = sessionKey
         self.model = model
         self.conversationBufferSize = max(1, conversationBufferSize)
+        if conversationBufferSize < 1 {
+            clawLog("⚠️ \(ConfigError.parameterOutOfBounds("conversationBufferSize", ">= 1").localizedDescription) Clamped to \(self.conversationBufferSize).")
+        }
         self.agentId = agentId
         self.maxTokens = max(1, maxTokens)
         self.relayOnlyMode = relayOnlyMode
@@ -186,6 +195,9 @@ struct ClawConfig: Codable {
         self.speculativePrewarmEnabled = speculativePrewarmEnabled
         self.speculativePrewarmMinWords = max(1, speculativePrewarmMinWords)
         self.speculativePrewarmCooldownSeconds = max(10, min(600, speculativePrewarmCooldownSeconds))
+        if speculativePrewarmCooldownSeconds < 10 || speculativePrewarmCooldownSeconds > 600 {
+            clawLog("⚠️ \(ConfigError.parameterOutOfBounds("speculativePrewarmCooldownSeconds", "[10, 600]").localizedDescription) Clamped to \(self.speculativePrewarmCooldownSeconds).")
+        }
     }
     
     init(from decoder: Decoder) throws {
@@ -236,25 +248,27 @@ struct ClawConfig: Codable {
     /// Validates the configuration, logs warnings, and corrects invalid string fields.
     ///
     /// Checks and corrects:
-    /// - ttsEngine → falls back to "system" if not "system" or "kokoro"
-    /// - hotkey → falls back to "Option+Space" if empty
+    /// - ttsEngine → falls back to "system" if not "system" or "kokoro"; normalizes to lowercase
+    /// - hotkey → falls back to "Option+Space" if empty or unparseable (invalid modifiers/keys)
     /// - kokoroVoice → falls back to "af_heart" if unrecognized (when Kokoro is selected)
     /// - gatewayUrl → logs warning if not valid HTTP/HTTPS (not corrected since no safe default)
     ///
-    /// Numerical parameters are already clamped in `init()` so they are not re-checked here.
+    /// Numerical parameters are already clamped and logged in `init()` so they are not re-checked here.
     mutating func validate() {
         let defaults = Self.defaultConfig
 
-        // Validate and correct TTS engine
+        // Validate and correct TTS engine (also normalize to lowercase)
         let normalizedEngine = ttsEngine.lowercased()
         if normalizedEngine != "system" && normalizedEngine != "kokoro" {
             let error = ConfigError.invalidTtsEngine(ttsEngine)
             clawLog("⚠️ \(error.localizedDescription) Using 'system' instead.")
             ttsEngine = defaults.ttsEngine
+        } else {
+            ttsEngine = normalizedEngine
         }
 
         // Validate and correct Kokoro voice if Kokoro engine selected
-        if ttsEngine.lowercased() == "kokoro" {
+        if ttsEngine == "kokoro" {
             let supportedVoices = ["af_heart"]
             if !supportedVoices.contains(kokoroVoice) {
                 let error = ConfigError.invalidKokoroVoice(kokoroVoice)
@@ -263,8 +277,8 @@ struct ClawConfig: Codable {
             }
         }
 
-        // Validate and correct hotkey
-        if hotkey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        // Validate and correct hotkey format
+        if !isValidHotkey(hotkey) {
             let error = ConfigError.invalidHotkey(hotkey)
             clawLog("⚠️ \(error.localizedDescription) Using default 'Option+Space'.")
             hotkey = defaults.hotkey
@@ -275,6 +289,51 @@ struct ClawConfig: Codable {
             let error = ConfigError.invalidGatewayUrl(gatewayUrl)
             clawLog("⚠️ \(error.localizedDescription)")
         }
+    }
+
+    /// Checks if a hotkey string can be parsed into a valid key combination.
+    ///
+    /// Valid formats: "fn", "MODIFIER+KEY", "MODIFIER+MODIFIER+KEY".
+    /// Mirrors the parsing logic in HotkeyManager.parseHotkey.
+    private func isValidHotkey(_ raw: String) -> Bool {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        let parts = trimmed
+            .split(separator: "+")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !parts.isEmpty else { return false }
+
+        let fnTokens: Set<String> = ["FN", "FUNCTION"]
+        let modifierTokens: Set<String> = ["CMD", "COMMAND", "OPTION", "ALT", "CONTROL", "CTRL", "SHIFT", "FN", "FUNCTION"]
+        // Simplified set of recognized key tokens (covers all keys in HotkeyManager)
+        let literalKeys: Set<String> = [
+            "SPACE", "RETURN", "ENTER", "TAB", "ESC", "ESCAPE", "DELETE", "BACKSPACE",
+            "PERIOD", "COMMA", "SLASH", "SEMICOLON", ".", ",", "/", ";"
+        ]
+
+        // Single token: must be fn/function
+        if parts.count == 1 {
+            return fnTokens.contains(parts[0].uppercased())
+                || isRecognizedKey(parts[0].uppercased(), literalKeys: literalKeys)
+        }
+
+        // Multi-token: all but last must be modifiers, last must be a key
+        for token in parts.dropLast() {
+            if !modifierTokens.contains(token.uppercased()) { return false }
+        }
+        let keyToken = parts.last!.uppercased()
+        return isRecognizedKey(keyToken, literalKeys: literalKeys)
+    }
+
+    private func isRecognizedKey(_ key: String, literalKeys: Set<String>) -> Bool {
+        if literalKeys.contains(key) { return true }
+        // Single alphanumeric character (A-Z, 0-9)
+        if key.count == 1, let c = key.first, c.isLetter || c.isNumber { return true }
+        // Function keys F1-F20
+        if key.hasPrefix("F"), key.count <= 3, let num = Int(key.dropFirst(1)), (1...20).contains(num) { return true }
+        return false
     }
 
     /// Checks if a URL string is a valid HTTP or HTTPS URL.
