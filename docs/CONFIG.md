@@ -20,7 +20,7 @@ Configuration is stored in `~/.openclaw/clawIsland.json`. Copy `example-config.j
 | `gatewayUrl` | String | `"http://localhost:18789"` | OpenClaw gateway URL. Supports HTTP or HTTPS. |
 | `gatewayToken` | String? | `null` | Optional authentication token for gateway (if required). |
 | `model` | String | `"openclaw"` | Model to use. Set to `"openclaw"` to route through configured agent (with tools, memory, skills). Or specify a model: `"anthropic/claude-opus-4-6"`. |
-| `agentId` | String | `"voice"` | OpenClaw agent ID to route messages to. |
+| `agentId` | String | `"main"` | OpenClaw agent ID to route messages to. |
 | `sessionKey` | String? | `null` | Optional session key for persistent server-side conversation history. When set, conversation history is maintained on gateway. When `null`, local buffer is used. |
 | `conversationBufferSize` | Int | `10` | Number of conversation turns (user+assistant pairs) to keep in local buffer. Only used when `sessionKey` is `null`. |
 

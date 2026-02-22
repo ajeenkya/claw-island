@@ -73,7 +73,7 @@ struct MiloConfig: Codable {
     /// Lower bound for adaptive token budgeting.
     var adaptiveMaxTokensFloor: Int
 
-    /// When enabled, Milo sends an early warmup request while recording to reduce first-token latency.
+    /// When enabled, sends an early warmup request while recording to reduce first-token latency.
     var speculativePrewarmEnabled: Bool
 
     /// Minimum live transcript word count before speculative prewarm can start.
@@ -233,63 +233,47 @@ struct MiloConfig: Codable {
         ]
     }
 
-    /// Validates the configuration and logs warnings for invalid fields.
+    /// Validates the configuration, logs warnings, and corrects invalid string fields.
     ///
-    /// Checks:
-    /// - ttsEngine is "system" or "kokoro"
-    /// - hotkey is non-empty and parseable (basic check)
-    /// - kokoroVoice is recognized if Kokoro engine is selected
-    /// - Numerical parameters are within acceptable bounds (already clamped in init)
-    /// - gatewayUrl is a valid HTTP/HTTPS URL
+    /// Checks and corrects:
+    /// - ttsEngine → falls back to "system" if not "system" or "kokoro"
+    /// - hotkey → falls back to "Option+Space" if empty
+    /// - kokoroVoice → falls back to "af_heart" if unrecognized (when Kokoro is selected)
+    /// - gatewayUrl → logs warning if not valid HTTP/HTTPS (not corrected since no safe default)
     ///
-    /// Note: Logs warnings instead of throwing—invalid config still loads with defaults fallback.
-    func validate() {
-        // Validate TTS engine
+    /// Numerical parameters are already clamped in `init()` so they are not re-checked here.
+    mutating func validate() {
+        let defaults = Self.defaultConfig
+
+        // Validate and correct TTS engine
         let normalizedEngine = ttsEngine.lowercased()
         if normalizedEngine != "system" && normalizedEngine != "kokoro" {
-            miloLog("⚠️ Invalid TTS engine '\(ttsEngine)'. Using 'system' instead.")
+            let error = ConfigError.invalidTtsEngine(ttsEngine)
+            miloLog("⚠️ \(error.localizedDescription) Using 'system' instead.")
+            ttsEngine = defaults.ttsEngine
         }
 
-        // Validate Kokoro voice if Kokoro engine selected
-        if normalizedEngine == "kokoro" {
+        // Validate and correct Kokoro voice if Kokoro engine selected
+        if ttsEngine.lowercased() == "kokoro" {
             let supportedVoices = ["af_heart"]
             if !supportedVoices.contains(kokoroVoice) {
-                miloLog("⚠️ Kokoro voice '\(kokoroVoice)' not recognized. Using 'af_heart' instead.")
+                let error = ConfigError.invalidKokoroVoice(kokoroVoice)
+                miloLog("⚠️ \(error.localizedDescription) Using 'af_heart' instead.")
+                kokoroVoice = defaults.kokoroVoice
             }
         }
 
-        // Validate hotkey is non-empty
+        // Validate and correct hotkey
         if hotkey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            miloLog("⚠️ Hotkey is empty. Using default 'Option+Space'.")
+            let error = ConfigError.invalidHotkey(hotkey)
+            miloLog("⚠️ \(error.localizedDescription) Using default 'Option+Space'.")
+            hotkey = defaults.hotkey
         }
 
-        // Validate gateway URL format
+        // Validate gateway URL format (log only—no safe default to substitute)
         if !isValidUrl(gatewayUrl) {
-            miloLog("⚠️ Invalid gateway URL '\(gatewayUrl)'. Ensure it's a valid HTTP/HTTPS URL.")
-        }
-
-        // Validate Kokoro speed is within bounds (should be clamped already)
-        if kokoroSpeed < 0.6 || kokoroSpeed > 1.6 {
-            miloLog("⚠️ Kokoro speed \(kokoroSpeed) out of bounds [0.6, 1.6]. Using clamped value.")
-        }
-
-        // Validate recording duration
-        if maxRecordingSeconds < 1 {
-            miloLog("⚠️ Max recording seconds must be >= 1. Using 1 second.")
-        }
-
-        // Validate token values
-        if maxTokens < 1 {
-            miloLog("⚠️ Max tokens must be >= 1. Using default value.")
-        }
-
-        if adaptiveMaxTokensFloor < 1 || adaptiveMaxTokensFloor > maxTokens {
-            miloLog("⚠️ Adaptive max tokens floor out of bounds. Using clamped value.")
-        }
-
-        // Validate speculative prewarm cooldown
-        if speculativePrewarmCooldownSeconds < 10 || speculativePrewarmCooldownSeconds > 600 {
-            miloLog("⚠️ Speculative prewarm cooldown out of bounds [10, 600]. Using clamped value.")
+            let error = ConfigError.invalidGatewayUrl(gatewayUrl)
+            miloLog("⚠️ \(error.localizedDescription)")
         }
     }
 
@@ -307,7 +291,7 @@ struct MiloConfig: Codable {
 
         for path in candidatePaths {
             guard let data = try? Data(contentsOf: path),
-                  let config = try? decoder.decode(MiloConfig.self, from: data) else {
+                  var config = try? decoder.decode(MiloConfig.self, from: data) else {
                 continue
             }
             config.validate()

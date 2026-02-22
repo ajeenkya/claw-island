@@ -102,7 +102,7 @@ func testIsSelectionRewriteRequest_WithKeyword() {
 ```bash
 cd src/clawIsland
 swift test                      # Run all tests
-swift test VoiceCommandIntentsTests  # Run specific test class
+swift test --filter VoiceCommandIntentsTests  # Run specific test class
 swift test --filter testFunctionName # Run specific test
 ```
 

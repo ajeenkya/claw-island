@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Minimal desktop text bridge for Milo/OpenClaw voice workflows.
+"""Minimal desktop text bridge for Claw Island/OpenClaw voice workflows.
 
 This script provides a stable, scriptable interface for common text editing operations:
 - Read selected text, insert text, replace selection, press send keys
@@ -308,7 +308,7 @@ def cmd_press_send(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Milo desktop text bridge")
+    parser = argparse.ArgumentParser(description="Claw Island desktop text bridge")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     p_context = subparsers.add_parser("get_context", help="Frontmost app/window context")

@@ -168,7 +168,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateMenuBarIcon() {
         guard let button = statusItem?.button else { return }
-        let image = NSImage(systemSymbolName: "mic.fill", accessibilityDescription: "Milo")
+        let image = NSImage(systemSymbolName: "mic.fill", accessibilityDescription: "Claw Island")
         switch state {
         case .recording:
             button.image = image?.withSymbolConfiguration(.init(paletteColors: [.systemRed]))

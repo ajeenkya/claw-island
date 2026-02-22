@@ -8,7 +8,7 @@ Internal app/binary name remains `clawIsland`.
 
 ## Features
 
-- Global hotkey trigger (`fn` by default)
+- Global hotkey trigger (`Option+Space` by default)
 - Notch-anchored animated HUD
 - Live speech recognition with Whisper fallback
 - OpenClaw chat completions routing (agent + session aware)

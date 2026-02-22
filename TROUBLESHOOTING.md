@@ -291,7 +291,7 @@ Common issues and solutions for Claw Island voice control.
 
 2. Test Kokoro manually:
    ```bash
-   python3 ~/.openclaw/clawIsland/kokoro-venv/bin/python3 -c "import kokoro"
+   ~/.openclaw/clawIsland/kokoro-venv/bin/python3 -c "import kokoro"
    ```
 
 3. Check Kokoro config paths in JSON:
@@ -374,7 +374,7 @@ Common issues and solutions for Claw Island voice control.
 **Diagnosis:**
 1. Check resource usage:
    ```bash
-   top -p $(pgrep clawIsland)
+   top -pid $(pgrep clawIsland)
    ```
 
 2. Check active processes:
