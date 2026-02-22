@@ -18,14 +18,29 @@ Internal app/binary name remains `clawIsland`.
   - `system` (Apple local voices via `say`)
   - `kokoro` (local open-source Kokoro-82M)
 
+## Quick Install
+
+```bash
+curl -sSL https://raw.githubusercontent.com/ajeenkya/claw-island/main/scripts/install.sh | bash
+```
+
+This handles everything: dependencies, building, app bundle creation, and walks you
+through optional components (Kokoro TTS, voice lane, hotkey/voice customization).
+Safe to re-run anytime. For CI or unattended installs:
+
+```bash
+CLAW_ISLAND_NON_INTERACTIVE=1 curl -sSL https://raw.githubusercontent.com/ajeenkya/claw-island/main/scripts/install.sh | bash
+```
+
 ## Requirements
 
 - macOS 14+
 - Swift 5.9+
+- [Homebrew](https://brew.sh)
 - `ffmpeg` (`brew install ffmpeg`)
 - OpenClaw gateway running (default `http://localhost:18789`)
 
-## Build and Run
+## Manual Build and Run
 
 ```bash
 cd src/clawIsland
