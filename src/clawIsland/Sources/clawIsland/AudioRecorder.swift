@@ -63,6 +63,7 @@ class AudioRecorder: ObservableObject {
             "-ar", "16000",
             "-ac", "1",
             "-acodec", "pcm_s16le",
+            "-flush_packets", "1",
             outputPath
         ]
         proc.standardOutput = FileHandle.nullDevice
@@ -129,11 +130,11 @@ class AudioRecorder: ObservableObject {
     private func readCurrentLevel() {
         guard let handle = FileHandle(forReadingAtPath: outputPath) else { return }
         defer { try? handle.close() }
-        
+
         // Get file size
         handle.seekToEndOfFile()
         let fileSize = handle.offsetInFile
-        
+
         // Need at least some new data (1600 samples = 100ms at 16kHz)
         let chunkBytes: UInt64 = 3200 // 1600 samples × 2 bytes
         guard fileSize > lastFileOffset + chunkBytes else { return }
@@ -179,6 +180,7 @@ class AudioRecorder: ObservableObject {
         } else {
             audioLevel = audioLevel + (newLevel - audioLevel) * 0.32
         }
+
     }
 }
 
