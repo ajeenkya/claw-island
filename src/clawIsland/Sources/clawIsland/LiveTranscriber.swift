@@ -24,11 +24,11 @@ class LiveTranscriber: ObservableObject {
         
         // Check authorization
         guard speechRecognizer?.isAvailable == true else {
-            miloLog("⚠️ SFSpeechRecognizer not available")
+            clawLog("⚠️ SFSpeechRecognizer not available")
             return
         }
         
-        miloLog("🎤 Starting live transcription...")
+        clawLog("🎤 Starting live transcription...")
         
         let engine = AVAudioEngine()
         let request = SFSpeechAudioBufferRecognitionRequest()
@@ -39,7 +39,7 @@ class LiveTranscriber: ObservableObject {
         let inputNode = engine.inputNode
         let recordingFormat = inputNode.outputFormat(forBus: 0)
         
-        miloLog("🔊 Audio format: \(recordingFormat.sampleRate) Hz, \(recordingFormat.channelCount) channels")
+        clawLog("🔊 Audio format: \(recordingFormat.sampleRate) Hz, \(recordingFormat.channelCount) channels")
         
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
             request.append(buffer)
@@ -47,9 +47,9 @@ class LiveTranscriber: ObservableObject {
         
         do {
             try engine.start()
-            miloLog("✅ Audio engine started successfully")
+            clawLog("✅ Audio engine started successfully")
         } catch {
-            miloLog("⚠️ LiveTranscriber engine start failed: \(error)")
+            clawLog("⚠️ LiveTranscriber engine start failed: \(error)")
             return
         }
         
@@ -63,12 +63,12 @@ class LiveTranscriber: ObservableObject {
             
             if let result = result {
                 let text = result.bestTranscription.formattedString
-                miloLog("🔍 Live transcript update: '\(text)' (final: \(result.isFinal))")
+                clawLog("🔍 Live transcript update: '\(text)' (final: \(result.isFinal))")
                 Task { @MainActor in
                     if result.isFinal {
                         self.finalText = text
                         self.partialText = text
-                        miloLog("🎯 Live final: \(text)")
+                        clawLog("🎯 Live final: \(text)")
                     } else {
                         self.partialText = text
                     }
@@ -80,17 +80,17 @@ class LiveTranscriber: ObservableObject {
                 // Only log if we care
                 let nsError = error as NSError
                 if nsError.code != 1110 { // 1110 = "no speech detected" — normal
-                    miloLog("⚠️ LiveTranscriber: \(error.localizedDescription)")
+                    clawLog("⚠️ LiveTranscriber: \(error.localizedDescription)")
                 }
             }
         }
         
-        miloLog("🎙️ Live transcription started")
+        clawLog("🎙️ Live transcription started")
     }
     
     /// Stop live transcription and return the best transcript.
     func stop() -> String {
-        miloLog("🛑 Stopping live transcription...")
+        clawLog("🛑 Stopping live transcription...")
         
         recognitionRequest?.endAudio()
         audioEngine?.inputNode.removeTap(onBus: 0)
@@ -103,7 +103,7 @@ class LiveTranscriber: ObservableObject {
         
         // Return final if available, otherwise partial
         let result = finalText.isEmpty ? partialText : finalText
-        miloLog("🎙️ Live transcription stopped: '\(result)' (length: \(result.count))")
+        clawLog("🎙️ Live transcription stopped: '\(result)' (length: \(result.count))")
         return result
     }
     
@@ -112,13 +112,13 @@ class LiveTranscriber: ObservableObject {
         SFSpeechRecognizer.requestAuthorization { status in
             switch status {
             case .authorized:
-                miloLog("✅ Speech recognition authorized")
+                clawLog("✅ Speech recognition authorized")
             case .denied:
-                miloLog("❌ Speech recognition denied")
+                clawLog("❌ Speech recognition denied")
             case .restricted:
-                miloLog("⚠️ Speech recognition restricted")
+                clawLog("⚠️ Speech recognition restricted")
             case .notDetermined:
-                miloLog("⚠️ Speech recognition not determined")
+                clawLog("⚠️ Speech recognition not determined")
             @unknown default:
                 break
             }

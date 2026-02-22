@@ -1,0 +1,22 @@
+{
+  "hotkey": "Option+Space",
+  "gatewayUrl": "http://localhost:18789",
+  "screenshotOnTrigger": true,
+  "ttsEngine": "system",
+  "ttsVoice": "Samantha (English (US))",
+  "kokoroVoice": "af_heart",
+  "kokoroSpeed": 1.15,
+  "kokoroLangCode": "a",
+  "whisperModel": "base.en",
+  "maxRecordingSeconds": 30,
+  "model": "openclaw",
+  "conversationBufferSize": 10,
+  "agentId": "main",
+  "maxTokens": 512,
+  "relayOnlyMode": true,
+  "adaptiveMaxTokensEnabled": true,
+  "adaptiveMaxTokensFloor": 128,
+  "speculativePrewarmEnabled": true,
+  "speculativePrewarmMinWords": 5,
+  "speculativePrewarmCooldownSeconds": 90
+}

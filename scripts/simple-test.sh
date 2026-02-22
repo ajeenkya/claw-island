@@ -14,9 +14,9 @@ cd "$(dirname "$0")/../src/clawIsland"
 
 # Run with debugging
 ./.build/release/clawIsland &
-MILO_PID=$!
+CLAW_PID=$!
 
-echo "✅ clawIsland started (PID: $MILO_PID)"
+echo "✅ clawIsland started (PID: $CLAW_PID)"
 echo ""
 echo "📋 IMPORTANT: Look for the MICROPHONE ICON in your menu bar"
 echo "             (top-right corner of your screen)"
@@ -34,4 +34,4 @@ echo "Press Ctrl+C to stop clawIsland"
 echo ""
 
 # Keep script running
-wait $MILO_PID
+wait $CLAW_PID

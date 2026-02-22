@@ -2,7 +2,7 @@ import Foundation
 
 /// Captures a screenshot of the frontmost window
 class ScreenCapture {
-    static let outputPath = "/tmp/milo-screenshot.png"
+    static let outputPath = "/tmp/claw-island-screenshot.png"
 
     /// Capture the active window screenshot. Returns the path on success.
     static func captureActiveWindow() async -> String? {
@@ -38,7 +38,7 @@ class ScreenCapture {
 
             return process.terminationStatus == 0 ? outputPath : await captureFullScreen()
         } catch {
-            miloLog("⚠️ Screenshot error: \(error)")
+            clawLog("⚠️ Screenshot error: \(error)")
             return await captureFullScreen()
         }
     }

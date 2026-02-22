@@ -1,18 +1,41 @@
 import Foundation
 
-/// Records microphone audio using ffmpeg subprocess.
-/// Monitors audio levels by reading the growing WAV file.
+/// Records microphone audio using ffmpeg subprocess with real-time level monitoring.
+///
+/// Records 16kHz mono PCM audio to a growing WAV file, continuously monitoring audio levels
+/// by reading PCM samples and converting them to dB-normalized values (0.0-1.0 range).
+/// Uses exponential smoothing with asymmetric attack/decay for responsive yet stable visualization.
+///
+/// Audio levels are calculated from RMS values with dB-based normalization:
+/// - Quiet speech (-55 dB) maps to 0.0
+/// - Loud speech (-10 dB) maps to 1.0
+/// - Includes noise gate to suppress true silence below 0.03 threshold
+///
+/// - Parameters: None. Configuration is via ffmpeg arguments (16kHz mono, pcm_s16le codec)
+/// - Output: WAV file written to `/tmp/claw-island-recording.wav`
+/// - Requires: ffmpeg installed and in PATH
 @MainActor
 class AudioRecorder: ObservableObject {
+    /// Underlying ffmpeg process for audio capture
     private var process: Process?
+    /// Whether audio is currently being recorded
     @Published var isRecording = false
+    /// Current audio level (0.0 = silence, 1.0 = loud speech). Updated via level monitoring.
     @Published var audioLevel: Float = 0.0
     
     private var levelTimer: Timer?
     private var lastFileOffset: UInt64 = 44 // Skip WAV header
     
-    let outputPath = "/tmp/milo-recording.wav"
+    let outputPath = "/tmp/claw-island-recording.wav"
 
+    /// Starts recording audio from the default microphone.
+    ///
+    /// Spawns an ffmpeg process to capture audio at 16kHz mono (pcm_s16le).
+    /// Automatically starts the level monitoring timer.
+    /// Cleans up any existing recording before starting.
+    ///
+    /// - Throws: `AudioRecorderError.ffmpegNotFound` if ffmpeg is not available in PATH
+    /// - Note: Requires microphone permission to be granted in System Settings
     func startRecording() throws {
         // Kill any lingering ffmpeg
         if let proc = process, proc.isRunning {
@@ -49,15 +72,22 @@ class AudioRecorder: ObservableObject {
         self.process = proc
         self.isRecording = true
         self.lastFileOffset = 44
-        miloLog("🎤 ffmpeg recording (PID: \(proc.processIdentifier), bin: \(ffmpegPath))")
+        clawLog("🎤 ffmpeg recording (PID: \(proc.processIdentifier), bin: \(ffmpegPath))")
         
         // Start reading levels from the WAV file
         startLevelMonitor()
     }
 
+    /// Stops recording audio and returns the path to the recorded WAV file.
+    ///
+    /// Terminates the ffmpeg process gracefully with a 3-second timeout.
+    /// Resets the audio level to 0.0 and stops the level monitoring timer.
+    ///
+    /// - Returns: The path to the recorded WAV file (`/tmp/claw-island-recording.wav`)
+    /// - Note: The WAV file persists after this call; the caller is responsible for cleanup if needed
     func stopRecording() -> String {
         stopLevelMonitor()
-        
+
         if let proc = process, proc.isRunning {
             proc.terminate()
             let deadline = Date().addingTimeInterval(3)
@@ -67,7 +97,7 @@ class AudioRecorder: ObservableObject {
             if proc.isRunning {
                 proc.interrupt()
             }
-            miloLog("🛑 ffmpeg exit: \(proc.terminationStatus)")
+            clawLog("🛑 ffmpeg exit: \(proc.terminationStatus)")
         }
         process = nil
         isRecording = false
@@ -75,7 +105,7 @@ class AudioRecorder: ObservableObject {
         
         let attrs = try? FileManager.default.attributesOfItem(atPath: outputPath)
         let size = (attrs?[.size] as? Int) ?? 0
-        miloLog("📁 Recording file: \(size) bytes")
+        clawLog("📁 Recording file: \(size) bytes")
         
         return outputPath
     }
@@ -84,8 +114,9 @@ class AudioRecorder: ObservableObject {
     
     private func startLevelMonitor() {
         levelTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            guard let strongSelf = self else { return }
             Task { @MainActor in
-                self?.readCurrentLevel()
+                strongSelf.readCurrentLevel()
             }
         }
     }

@@ -73,7 +73,7 @@ esac
 
 # Test the voice
 echo "🔊 Testing voice: $VOICE"
-say -v "$VOICE" "Hello! I'm your new Milo voice. How do I sound?"
+say -v "$VOICE" "Hello! I'm your new Claw Island voice. How do I sound?"
 
 echo ""
 read -p "Do you like this voice? (y/n): " confirm

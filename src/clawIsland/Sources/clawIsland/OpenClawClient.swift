@@ -12,18 +12,34 @@ enum StreamEvent {
 
 /// Client for sending messages to the OpenClaw gateway via chat completions API.
 ///
-/// Routes through the gateway's full agent session system when model is "openclaw",
+/// Provides streaming and non-streaming message APIs with built-in conversation history tracking.
+/// Maintains a local conversation buffer (last N turns) to provide multi-turn context.
+///
+/// When model is "openclaw", routes through the gateway's full agent session system,
 /// giving the agent access to tools, memory, skills, and conversation history.
+///
+/// Sentence-based streaming:
+/// - Extracts complete sentences (ending with . ! ?) from streamed text
+/// - Yields sentences incrementally for immediate TTS (low latency)
+/// - Handles abbreviations (Dr., Mr., etc.) to avoid false sentence breaks
+/// - Flushes remaining text at stream end
+///
+/// - Configuration: All routing, model, and buffer size settings come from ClawConfig
+/// - Network: URLSession configured with keep-alive and 120-second timeout
 class OpenClawClient {
-    private let config: MiloConfig
-    
+    private let config: ClawConfig
+
     /// Local conversation buffer — keeps the last N turns for multi-turn context.
+    /// Format: [(role: "user"|"assistant", content: String)]
     private var conversationBuffer: [(role: String, content: String)] = []
-    
+
     /// Reusable URLSession with keep-alive for lower latency
     private let session: URLSession
 
-    init(config: MiloConfig) {
+    /// Initializes the client with OpenClaw gateway configuration.
+    ///
+    /// - Parameter config: ClawConfig instance with gateway URL, token, model, and buffer size
+    init(config: ClawConfig) {
         self.config = config
         let sessionConfig = URLSessionConfiguration.default
         sessionConfig.httpMaximumConnectionsPerHost = 2
@@ -32,23 +48,36 @@ class OpenClawClient {
     }
 
     // MARK: - Streaming API (primary path)
-    
-    /// Stream a message to OpenClaw, yielding sentences as they complete.
-    /// Returns an AsyncStream of StreamEvents — each `.sentence` is ready for immediate TTS.
+
+    /// Streams a message to OpenClaw, yielding complete sentences as they arrive.
+    ///
+    /// Uses server-sent events (SSE) format for streaming. Extracts and yields complete
+    /// sentences (ending with . ! ?) from the stream, enabling real-time TTS as the model
+    /// generates output. Returns a full transcript when streaming completes.
+    ///
+    /// Sentence extraction handles abbreviations (Dr, Mr, etc.) to avoid false breaks.
+    /// Any remaining buffered text is flushed as a final sentence before finishing.
+    ///
+    /// - Parameters:
+    ///   - text: User message to send to OpenClaw
+    ///   - screenshotPath: Optional path to screenshot image for visual context
+    ///   - runtimeContext: Optional context string about current app/window (e.g., "frontmost_app=Safari")
+    /// - Returns: AsyncStream yielding StreamEvent values (sentence, done, or error)
+    /// - Note: Updates local conversation buffer with both request and response
     func streamMessage(text: String, screenshotPath: String?, runtimeContext: String?) -> AsyncStream<StreamEvent> {
         AsyncStream { continuation in
             Task {
                 do {
                     let request = try buildRequest(text: text, screenshotPath: screenshotPath, runtimeContext: runtimeContext, stream: true)
                     
-                    miloLog("📡 Streaming to OpenClaw (model: \(config.model)): \(text)")
+                    clawLog("📡 Streaming to OpenClaw (model: \(config.model)): \(text)")
                     
                     let (bytes, response) = try await session.bytes(for: request)
                     
                     guard let httpResponse = response as? HTTPURLResponse,
                           (200...299).contains(httpResponse.statusCode) else {
                         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-                        miloLog("❌ Stream API error \(statusCode)")
+                        clawLog("❌ Stream API error \(statusCode)")
                         continuation.yield(.error(OpenClawError.apiError(statusCode: statusCode, body: "Stream error")))
                         continuation.finish()
                         return
@@ -81,7 +110,7 @@ class OpenClawClient {
                         while let sentence = extractSentence(from: &sentenceBuffer) {
                             let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
                             if !trimmed.isEmpty {
-                                miloLog("🔊 Sentence ready: \(trimmed.prefix(60))...")
+                                clawLog("🔊 Sentence ready: \(trimmed.prefix(60))...")
                                 continuation.yield(.sentence(trimmed))
                             }
                         }
@@ -90,7 +119,7 @@ class OpenClawClient {
                     // Flush any remaining text in the buffer
                     let remaining = sentenceBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !remaining.isEmpty {
-                        miloLog("🔊 Final fragment: \(remaining.prefix(60))...")
+                        clawLog("🔊 Final fragment: \(remaining.prefix(60))...")
                         continuation.yield(.sentence(remaining))
                     }
                     
@@ -98,12 +127,12 @@ class OpenClawClient {
                     appendToBuffer(role: "user", content: text)
                     appendToBuffer(role: "assistant", content: fullResponse)
                     
-                    miloLog("✅ Stream complete: \(fullResponse.count) chars")
+                    clawLog("✅ Stream complete: \(fullResponse.count) chars")
                     continuation.yield(.done(fullResponse))
                     continuation.finish()
                     
                 } catch {
-                    miloLog("❌ Stream error: \(error)")
+                    clawLog("❌ Stream error: \(error)")
                     continuation.yield(.error(error))
                     continuation.finish()
                 }
@@ -112,12 +141,24 @@ class OpenClawClient {
     }
     
     // MARK: - Non-streaming fallback
-    
-    /// Send a non-streaming message using the same config-driven routing as streaming.
+
+    /// Sends a message to OpenClaw and returns the complete response.
+    ///
+    /// Fallback path when streaming is unavailable or not desired. Uses the same
+    /// config-driven routing as streaming (model, agent, session key). Returns the full
+    /// response text at once rather than yielding sentences incrementally.
+    ///
+    /// - Parameters:
+    ///   - text: User message to send to OpenClaw
+    ///   - screenshotPath: Optional path to screenshot image for visual context
+    ///   - runtimeContext: Optional context string about current app/window
+    /// - Returns: Complete response text from OpenClaw
+    /// - Throws: `OpenClawError` if gateway request fails or response is malformed
+    /// - Note: Updates local conversation buffer with both request and response
     func sendMessage(text: String, screenshotPath: String?, runtimeContext: String?) async throws -> String {
         let request = try buildRequest(text: text, screenshotPath: screenshotPath, runtimeContext: runtimeContext, stream: false)
         
-        miloLog("📡 Sending to OpenClaw (non-streaming): \(text)")
+        clawLog("📡 Sending to OpenClaw (non-streaming): \(text)")
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
@@ -140,10 +181,13 @@ class OpenClawClient {
         return String(data: data, encoding: .utf8) ?? "No response"
     }
     
-    /// Clear conversation history
+    /// Clears the local conversation history buffer.
+    ///
+    /// Use this to reset multi-turn context and start a fresh conversation.
+    /// Note: Does not affect OpenClaw's server-side session history.
     func clearHistory() {
         conversationBuffer.removeAll()
-        miloLog("🧹 Conversation buffer cleared")
+        clawLog("🧹 Conversation buffer cleared")
     }
     
     // MARK: - Sentence Extraction
@@ -226,7 +270,7 @@ class OpenClawClient {
         if let sessionKey = config.sessionKey {
             body["user"] = sessionKey
             // Add debug info to help troubleshoot routing
-            miloLog("🔍 API Request - sessionKey: \(sessionKey), agentId: \(config.agentId), model: \(config.model)")
+            clawLog("🔍 API Request - sessionKey: \(sessionKey), agentId: \(config.agentId), model: \(config.model)")
         } else {
             body["user"] = "clawIsland"
         }

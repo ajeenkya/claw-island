@@ -41,5 +41,5 @@ jobs:
 
       - name: Python Syntax Check
         run: |
-          python3 -m py_compile desktop-actions/milo_bridge.py
+          python3 -m py_compile desktop-actions/claw_bridge.py
           python3 -m py_compile scripts/kokoro_tts.py

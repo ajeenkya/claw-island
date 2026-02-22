@@ -68,7 +68,7 @@ private enum OCTypography {
 
 @MainActor
 final class HUDModel: ObservableObject {
-    @Published var state: MiloState = .idle
+    @Published var state: ClawState = .idle
     @Published var transcript: String = ""
     @Published var audioLevel: Float = 0
     @Published var showContent: Bool = true
@@ -85,7 +85,7 @@ struct RecordingHUD: View {
     private let notchWidth: CGFloat = 190
     private let notchHeight: CGFloat = 34
     
-    private var state: MiloState { model.state }
+    private var state: ClawState { model.state }
     private var transcript: String { model.transcript }
     private var audioLevel: Float { model.audioLevel }
     private var isExpanded: Bool { state != .idle }
@@ -223,7 +223,7 @@ struct RecordingHUD: View {
                     SpeakingWave()
                         .frame(width: 20, height: 14)
                     
-                    Text("Milo")
+                    Text("Claw Island")
                         .font(OCTypography.text(bold: true))
                         .foregroundColor(OC.textPrimary.opacity(0.95))
                     
