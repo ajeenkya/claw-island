@@ -1,20 +1,45 @@
 import Foundation
 import Cocoa
 
-/// Text-to-speech engine that supports sentence-by-sentence speaking.
-/// Supports local system voices (`say`) and local Kokoro synthesis.
+/// Text-to-speech engine with multiple voice backends and sentence-by-sentence playback.
+///
+/// Supports two TTS backends:
+/// 1. **Kokoro**: Local, open-source speech synthesis (requires Python venv + Kokoro library)
+/// 2. **System**: macOS native voices via `/usr/bin/say` (always available)
+///
+/// Voice selection and engine preference are configured via MiloConfig.
+/// Automatically falls back to system voices if Kokoro is unavailable.
+/// Supports cancellation mid-speech via the `stop()` method.
+///
+/// - Note: Each call to `speakSentence()` blocks until speech completes (async via process termination)
+/// - Audio output goes to the system's default audio output
 class TTSEngine {
+    /// Currently running text-to-speech process (system or Kokoro)
     private var currentProcess: Process?
+    /// Whether speech has been cancelled; checked before starting speech
     private var cancelled = false
+    /// Configuration with TTS engine and voice preferences
     private let config: MiloConfig
-    
+
+    /// Whether speech playback has been cancelled
     var isCancelled: Bool { cancelled }
 
+    /// Initializes TTS engine with voice and engine configuration.
+    ///
+    /// - Parameter config: MiloConfig instance with ttsEngine and voice settings
     init(config: MiloConfig) {
         self.config = config
     }
 
-    /// Speak a single sentence. Returns when speech completes.
+    /// Speaks a single sentence using the configured TTS engine and voice.
+    ///
+    /// Attempts the preferred engine (Kokoro or system), falls back automatically if unavailable.
+    /// Blocks until speech completes (async via process termination handling).
+    /// Respects cancellation flag—returns immediately if `stop()` was called.
+    ///
+    /// - Parameter text: Sentence text to speak (usually < 500 chars)
+    /// - Note: Text is automatically trimmed; empty text is a no-op
+    /// - SeeAlso: `stop()` to cancel ongoing speech
     func speakSentence(_ text: String) async {
         guard !cancelled else { return }
         
@@ -212,12 +237,19 @@ class TTSEngine {
         return path
     }
     
-    /// Speak full text as one block (legacy, non-streaming fallback)
+    /// Speaks full text as a single block without sentence splitting.
+    ///
+    /// Legacy fallback path for non-streaming responses. Equivalent to calling `speakSentence()`.
+    ///
+    /// - Parameter text: Complete text to speak
     func speak(_ text: String) async {
         await speakSentence(text)
     }
 
-    /// Cancel any in-progress speech immediately
+    /// Immediately cancels any in-progress speech playback.
+    ///
+    /// Terminates the underlying process and sets the cancellation flag.
+    /// Safe to call when no speech is playing.
     func stop() {
         cancelled = true
         if let proc = currentProcess, proc.isRunning {
@@ -225,8 +257,11 @@ class TTSEngine {
         }
         currentProcess = nil
     }
-    
-    /// Reset cancellation flag for new interaction
+
+    /// Resets the engine for a new interaction.
+    ///
+    /// Clears the cancellation flag and process reference.
+    /// Call this before starting a new TTS sequence.
     func reset() {
         cancelled = false
         currentProcess = nil

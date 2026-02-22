@@ -1,5 +1,34 @@
 import Foundation
 
+/// Configuration validation errors with user-friendly messages.
+enum ConfigError: Error, LocalizedError {
+    /// TTS engine value is not "system" or "kokoro"
+    case invalidTtsEngine(String)
+    /// Gateway URL is not a valid HTTP/HTTPS URL
+    case invalidGatewayUrl(String)
+    /// Hotkey string cannot be parsed into a valid key combination
+    case invalidHotkey(String)
+    /// Kokoro voice is not recognized when Kokoro engine is selected
+    case invalidKokoroVoice(String)
+    /// Numerical parameter is out of acceptable bounds
+    case parameterOutOfBounds(String, String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidTtsEngine(let value):
+            return "Invalid TTS engine '\(value)'. Must be 'system' or 'kokoro'."
+        case .invalidGatewayUrl(let url):
+            return "Invalid gateway URL '\(url)'. Must be a valid HTTP or HTTPS URL."
+        case .invalidHotkey(let hotkey):
+            return "Invalid hotkey '\(hotkey)'. Format: 'fn' or 'MODIFIER+MODIFIER+KEY' (e.g., 'Option+Space')."
+        case .invalidKokoroVoice(let voice):
+            return "Kokoro voice '\(voice)' not recognized. Supported: 'af_heart'."
+        case .parameterOutOfBounds(let param, let bounds):
+            return "Parameter '\(param)' out of bounds: \(bounds)"
+        }
+    }
+}
+
 /// App configuration loaded from ~/.openclaw/clawIsland.json
 struct MiloConfig: Codable {
     var hotkey: String
@@ -204,6 +233,73 @@ struct MiloConfig: Codable {
         ]
     }
 
+    /// Validates the configuration and logs warnings for invalid fields.
+    ///
+    /// Checks:
+    /// - ttsEngine is "system" or "kokoro"
+    /// - hotkey is non-empty and parseable (basic check)
+    /// - kokoroVoice is recognized if Kokoro engine is selected
+    /// - Numerical parameters are within acceptable bounds (already clamped in init)
+    /// - gatewayUrl is a valid HTTP/HTTPS URL
+    ///
+    /// Note: Logs warnings instead of throwing—invalid config still loads with defaults fallback.
+    func validate() {
+        // Validate TTS engine
+        let normalizedEngine = ttsEngine.lowercased()
+        if normalizedEngine != "system" && normalizedEngine != "kokoro" {
+            miloLog("⚠️ Invalid TTS engine '\(ttsEngine)'. Using 'system' instead.")
+        }
+
+        // Validate Kokoro voice if Kokoro engine selected
+        if normalizedEngine == "kokoro" {
+            let supportedVoices = ["af_heart"]
+            if !supportedVoices.contains(kokoroVoice) {
+                miloLog("⚠️ Kokoro voice '\(kokoroVoice)' not recognized. Using 'af_heart' instead.")
+            }
+        }
+
+        // Validate hotkey is non-empty
+        if hotkey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            miloLog("⚠️ Hotkey is empty. Using default 'Option+Space'.")
+        }
+
+        // Validate gateway URL format
+        if !isValidUrl(gatewayUrl) {
+            miloLog("⚠️ Invalid gateway URL '\(gatewayUrl)'. Ensure it's a valid HTTP/HTTPS URL.")
+        }
+
+        // Validate Kokoro speed is within bounds (should be clamped already)
+        if kokoroSpeed < 0.6 || kokoroSpeed > 1.6 {
+            miloLog("⚠️ Kokoro speed \(kokoroSpeed) out of bounds [0.6, 1.6]. Using clamped value.")
+        }
+
+        // Validate recording duration
+        if maxRecordingSeconds < 1 {
+            miloLog("⚠️ Max recording seconds must be >= 1. Using 1 second.")
+        }
+
+        // Validate token values
+        if maxTokens < 1 {
+            miloLog("⚠️ Max tokens must be >= 1. Using default value.")
+        }
+
+        if adaptiveMaxTokensFloor < 1 || adaptiveMaxTokensFloor > maxTokens {
+            miloLog("⚠️ Adaptive max tokens floor out of bounds. Using clamped value.")
+        }
+
+        // Validate speculative prewarm cooldown
+        if speculativePrewarmCooldownSeconds < 10 || speculativePrewarmCooldownSeconds > 600 {
+            miloLog("⚠️ Speculative prewarm cooldown out of bounds [10, 600]. Using clamped value.")
+        }
+    }
+
+    /// Checks if a URL string is a valid HTTP or HTTPS URL.
+    private func isValidUrl(_ urlString: String) -> Bool {
+        guard let url = URL(string: urlString) else { return false }
+        let scheme = url.scheme?.lowercased() ?? ""
+        return scheme == "http" || scheme == "https"
+    }
+
     /// Load config from disk, falling back to defaults
     static func load() -> MiloConfig {
         let decoder = JSONDecoder()
@@ -214,6 +310,7 @@ struct MiloConfig: Codable {
                   let config = try? decoder.decode(MiloConfig.self, from: data) else {
                 continue
             }
+            config.validate()
             return config
         }
 

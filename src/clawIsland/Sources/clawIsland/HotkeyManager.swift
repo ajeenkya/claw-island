@@ -1,5 +1,18 @@
 import Cocoa
 
+/// Manages global hotkey registration and triggering for push-to-talk activation.
+///
+/// Supports two trigger modes:
+/// - Function key only (`fn` key)
+/// - Custom key combinations (e.g., `Option+Space`, `Cmd+Shift+F1`)
+///
+/// Hotkey format: `"FN"` or `"MODIFIER+MODIFIER+KEY"` where:
+/// - Modifiers: CMD/COMMAND, OPTION/ALT, CONTROL/CTRL, SHIFT, FN
+/// - Keys: Alphanumeric (A-Z, 0-9), Function keys (F1-F20), or literals (SPACE, RETURN, TAB, etc.)
+///
+/// Uses global and local event monitors to detect key presses. Includes 0.3-second debounce
+/// to prevent duplicate triggers. Automatically falls back to `fn` if hotkey parsing fails.
+/// Requires Accessibility permission for global hotkey monitoring.
 class HotkeyManager {
     private enum TriggerStyle {
         case functionOnly
@@ -64,6 +77,15 @@ class HotkeyManager {
         "F15": 113, "F16": 106, "F17": 64, "F18": 79, "F19": 80, "F20": 90
     ]
 
+    /// Registers a global hotkey trigger with the system.
+    ///
+    /// Parses the hotkey string and sets up event monitors for both global and local key events.
+    /// If hotkey parsing fails, silently falls back to `fn` trigger.
+    /// Call this once during app initialization.
+    ///
+    /// - Parameter hotkey: Hotkey specification string (e.g., "fn", "Option+Space", "Cmd+Shift+F1")
+    /// - Note: Requires Accessibility permission to be granted for global hotkey monitoring
+    /// - SeeAlso: `unregister()` to clean up monitors when no longer needed
     func register(hotkey: String) {
         unregister()
         
@@ -147,6 +169,10 @@ class HotkeyManager {
         }
     }
 
+    /// Unregisters the global hotkey and removes all event monitors.
+    ///
+    /// Call this when the app is terminating to clean up system resources.
+    /// Safe to call multiple times.
     func unregister() {
         if let m = globalFlagsMonitor { NSEvent.removeMonitor(m) }
         if let m = localFlagsMonitor { NSEvent.removeMonitor(m) }

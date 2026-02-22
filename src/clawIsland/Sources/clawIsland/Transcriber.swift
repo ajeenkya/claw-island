@@ -1,15 +1,35 @@
 import Foundation
 import Speech
 
-/// Transcribes audio using whisper-cpp CLI with SFSpeechRecognizer fallback
+/// Transcribes audio files using multiple backends with automatic fallback.
+///
+/// Transcription strategy (in order of preference):
+/// 1. **whisper-cpp**: Local, offline speech recognition (requires prior installation)
+/// 2. **SFSpeechRecognizer**: macOS system speech framework (always available, requires Speech permission)
+///
+/// Falls back to SFSpeechRecognizer automatically if whisper-cpp is unavailable or fails.
+/// Model selection for whisper-cpp is configurable (e.g., base.en, small.en, medium.en).
+///
+/// - Note: Requires Speech Recognition permission in System Settings
+/// - Audio should be at 16kHz mono PCM format (as produced by AudioRecorder)
 class Transcriber {
     private let config: MiloConfig
 
+    /// Initializes transcriber with configuration.
+    ///
+    /// - Parameter config: MiloConfig instance with whisper model selection
     init(config: MiloConfig) {
         self.config = config
     }
 
-    /// Transcribe the audio file at the given path
+    /// Transcribes an audio file using the configured transcription backends.
+    ///
+    /// Attempts whisper-cpp first (if available), falls back to SFSpeechRecognizer.
+    /// Returns the transcribed text with whitespace trimmed.
+    ///
+    /// - Parameter audioPath: Path to audio file (typically 16kHz mono WAV from AudioRecorder)
+    /// - Returns: Transcribed text (trimmed whitespace)
+    /// - Throws: `TranscriberError.speechRecognizerUnavailable` if both backends fail
     func transcribe(audioPath: String) async throws -> String {
         // Try whisper-cpp first
         if let result = try? await transcribeWithWhisper(audioPath: audioPath) {

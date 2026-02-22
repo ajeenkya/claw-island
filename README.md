@@ -81,6 +81,8 @@ This creates a dedicated venv at `~/.openclaw/clawIsland/kokoro-venv`, installs 
 
 Config file: `~/.openclaw/clawIsland.json`
 
+**See [docs/CONFIG.md](docs/CONFIG.md) for comprehensive configuration guide.**
+
 Example fields:
 
 ```json
@@ -98,6 +100,8 @@ Example fields:
 }
 ```
 
+Copy [example-config.json](example-config.json) to get started with all available options.
+
 ## Optional Local Action Helpers
 
 If you explicitly set `"relayOnlyMode": false`, Milo can run local overlay helpers (for example selection rewrite and direct type/send shortcuts) before forwarding.
@@ -114,12 +118,19 @@ Bridge script (included in this repo): `desktop-actions/milo_bridge.py`
   - scrub `~/.openclaw/clawIsland.json`
   - rotate any local gateway token previously used in development
 
+## Documentation
+
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Development setup, testing, and PR guidelines
+- **[docs/CONFIG.md](docs/CONFIG.md)** - Comprehensive configuration reference
+- **[docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)** - Dependencies, versions, and requirements
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues and solutions
+- **[SECURITY.md](SECURITY.md)** - Security policy
+- **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** - Community standards
+- **[CHANGELOG.md](CHANGELOG.md)** - Release notes and version history
+
 ## Contributing
 
-- Contribution guide: `CONTRIBUTING.md`
-- Security policy: `SECURITY.md`
-- Code of conduct: `CODE_OF_CONDUCT.md`
-- Changelog: `CHANGELOG.md`
+Questions or want to contribute? Start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
