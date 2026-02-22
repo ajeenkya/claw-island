@@ -72,6 +72,7 @@ final class HUDModel: ObservableObject {
     @Published var transcript: String = ""
     @Published var audioLevel: Float = 0
     @Published var showContent: Bool = true
+    var agentName: String = "main"
 }
 
 // MARK: - The Dynamic Island HUD
@@ -163,16 +164,13 @@ struct RecordingHUD: View {
                         .foregroundColor(OC.textPrimary.opacity(0.9))
                     
                     Spacer()
-                    
-                    // Mini level indicator
-                    MiniLevelDots(level: audioLevel)
                 }
                 .padding(.top, 12)
                 .padding(.horizontal, 22)
                 
                 // Audio visualizer
                 AudioVisualizerView(level: audioLevel)
-                    .frame(height: 40)
+                    .frame(height: 32)
                     .padding(.horizontal, 16)
                 
                 // Transcript (if available)
@@ -223,7 +221,7 @@ struct RecordingHUD: View {
                     SpeakingWave()
                         .frame(width: 20, height: 14)
                     
-                    Text("Claw Island")
+                    Text(model.agentName.capitalized)
                         .font(OCTypography.text(bold: true))
                         .foregroundColor(OC.textPrimary.opacity(0.95))
                     
@@ -356,64 +354,87 @@ private struct DynamicBackdrop: View {
     }
 }
 
-// MARK: - Audio Visualizer
+// MARK: - Audio Visualizer (flowing waveform)
+
+private struct WaveLayer {
+    let freq: Double
+    let offset: Double
+    let opacity: Double
+    let width: CGFloat
+}
 
 struct AudioVisualizerView: View {
     let level: Float
-    
+
     @State private var phase: Double = 0
-    @State private var bars: [CGFloat] = Array(repeating: 0.03, count: 36)
-    
-    private let timer = Timer.publish(every: 0.035, on: .main, in: .common).autoconnect()
-    
+    @State private var smoothLevel: CGFloat = 0.0
+
+    private let timer = Timer.publish(every: 0.025, on: .main, in: .common).autoconnect()
+
+    private let layers: [WaveLayer] = [
+        WaveLayer(freq: 1.0, offset: 0.0, opacity: 0.9,  width: 2.0),
+        WaveLayer(freq: 1.8, offset: 1.2, opacity: 0.45, width: 1.2),
+        WaveLayer(freq: 0.6, offset: 2.5, opacity: 0.35, width: 1.0),
+    ]
+
     var body: some View {
-        HStack(spacing: 1.5) {
-            ForEach(0..<bars.count, id: \.self) { i in
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(barGradient(height: bars[i]))
-                    .frame(width: 2.5, height: max(bars[i] * 40, 1.5))
-            }
+        Canvas { context, size in
+            drawWaves(context: context, size: size)
         }
         .onReceive(timer) { _ in
-            updateBars()
+            advancePhase()
         }
     }
-    
-    private func updateBars() {
-        phase += 0.12
-        // Use a gentler gain curve so the visualizer does not pin at max height.
-        let base = CGFloat(min(max(level * 1.35, 0.06), 1.0))
-        let count = Double(bars.count)
-        let center = count / 2.0
-        
-        withAnimation(.easeOut(duration: 0.05)) {
-            for i in 0..<bars.count {
-                let distFromCenter = abs(Double(i) - center) / center
-                // Smooth bell curve envelope
-                let envelope = exp(-distFromCenter * distFromCenter * 2.0)
-                let wave = sin(Double(i) * 0.45 + phase) * 0.3 + 0.7
-                let noise = Double.random(in: 0.9...1.1)
-                let target = base * CGFloat(envelope * wave * noise)
-                
-                let current = bars[i]
-                if target > current {
-                    bars[i] = current + (target - current) * 0.65
-                } else {
-                    bars[i] = current + (target - current) * 0.2
-                }
+
+    private func advancePhase() {
+        phase += 0.06
+        let target = CGFloat(min(max(level * 1.645, 0.08), 1.0))
+        if target > smoothLevel {
+            smoothLevel += (target - smoothLevel) * 0.4
+        } else {
+            smoothLevel += (target - smoothLevel) * 0.08
+        }
+    }
+
+    private func drawWaves(context: GraphicsContext, size: CGSize) {
+        let midY: CGFloat = size.height / 2
+        let steps: Int = Int(size.width)
+        let amp: Double = Double(smoothLevel) * Double(size.height) * 0.42
+
+        for layer in layers {
+            let path = buildWavePath(steps: steps, midY: midY, amp: amp, layer: layer)
+            context.stroke(path, with: .color(OC.teal.opacity(layer.opacity)), lineWidth: layer.width)
+        }
+
+        // Faint center glow line
+        let glowOpacity: Double = 0.12 + Double(smoothLevel) * 0.08
+        var centerLine = Path()
+        centerLine.move(to: CGPoint(x: 0, y: midY))
+        centerLine.addLine(to: CGPoint(x: size.width, y: midY))
+        context.stroke(centerLine, with: .color(OC.teal.opacity(glowOpacity)), lineWidth: 0.5)
+    }
+
+    private func buildWavePath(steps: Int, midY: CGFloat, amp: Double, layer: WaveLayer) -> Path {
+        var path = Path()
+        let stepsD = Double(steps)
+
+        for x in 0...steps {
+            let xNorm: Double = Double(x) / stepsD
+            let edgeFade: Double = sin(xNorm * .pi)
+
+            let w1: Double = sin(xNorm * .pi * 3.0 * layer.freq + phase * 1.2 + layer.offset)
+            let w2: Double = sin(xNorm * .pi * 5.0 * layer.freq + phase * 0.7 + layer.offset * 1.5)
+            let composite: Double = w1 * 0.65 + w2 * 0.35
+
+            let y: CGFloat = midY + CGFloat(composite * edgeFade * amp)
+
+            if x == 0 {
+                path.move(to: CGPoint(x: CGFloat(x), y: y))
+            } else {
+                path.addLine(to: CGPoint(x: CGFloat(x), y: y))
             }
         }
-    }
-    
-    private func barGradient(height: CGFloat) -> LinearGradient {
-        LinearGradient(
-            colors: [
-                OC.teal.opacity(0.4 + Double(height) * 0.6),
-                OC.teal
-            ],
-            startPoint: .bottom,
-            endPoint: .top
-        )
+        return path
     }
 }
 
