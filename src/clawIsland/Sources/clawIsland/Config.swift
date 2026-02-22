@@ -30,7 +30,7 @@ enum ConfigError: Error, LocalizedError {
 }
 
 /// App configuration loaded from ~/.openclaw/clawIsland.json
-struct MiloConfig: Codable {
+struct ClawConfig: Codable {
     var hotkey: String
     var gatewayUrl: String
     var gatewayToken: String?
@@ -82,7 +82,7 @@ struct MiloConfig: Codable {
     /// Cooldown between speculative prewarm calls.
     var speculativePrewarmCooldownSeconds: Double
 
-    static let defaultConfig = MiloConfig(
+    static let defaultConfig = ClawConfig(
         hotkey: "Option+Space",
         gatewayUrl: "http://localhost:18789",
         gatewayToken: nil,
@@ -249,7 +249,7 @@ struct MiloConfig: Codable {
         let normalizedEngine = ttsEngine.lowercased()
         if normalizedEngine != "system" && normalizedEngine != "kokoro" {
             let error = ConfigError.invalidTtsEngine(ttsEngine)
-            miloLog("⚠️ \(error.localizedDescription) Using 'system' instead.")
+            clawLog("⚠️ \(error.localizedDescription) Using 'system' instead.")
             ttsEngine = defaults.ttsEngine
         }
 
@@ -258,7 +258,7 @@ struct MiloConfig: Codable {
             let supportedVoices = ["af_heart"]
             if !supportedVoices.contains(kokoroVoice) {
                 let error = ConfigError.invalidKokoroVoice(kokoroVoice)
-                miloLog("⚠️ \(error.localizedDescription) Using 'af_heart' instead.")
+                clawLog("⚠️ \(error.localizedDescription) Using 'af_heart' instead.")
                 kokoroVoice = defaults.kokoroVoice
             }
         }
@@ -266,14 +266,14 @@ struct MiloConfig: Codable {
         // Validate and correct hotkey
         if hotkey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let error = ConfigError.invalidHotkey(hotkey)
-            miloLog("⚠️ \(error.localizedDescription) Using default 'Option+Space'.")
+            clawLog("⚠️ \(error.localizedDescription) Using default 'Option+Space'.")
             hotkey = defaults.hotkey
         }
 
         // Validate gateway URL format (log only—no safe default to substitute)
         if !isValidUrl(gatewayUrl) {
             let error = ConfigError.invalidGatewayUrl(gatewayUrl)
-            miloLog("⚠️ \(error.localizedDescription)")
+            clawLog("⚠️ \(error.localizedDescription)")
         }
     }
 
@@ -285,13 +285,13 @@ struct MiloConfig: Codable {
     }
 
     /// Load config from disk, falling back to defaults
-    static func load() -> MiloConfig {
+    static func load() -> ClawConfig {
         let decoder = JSONDecoder()
         let candidatePaths = [configPath] + legacyConfigPaths
 
         for path in candidatePaths {
             guard let data = try? Data(contentsOf: path),
-                  var config = try? decoder.decode(MiloConfig.self, from: data) else {
+                  var config = try? decoder.decode(ClawConfig.self, from: data) else {
                 continue
             }
             config.validate()
@@ -306,6 +306,6 @@ struct MiloConfig: Codable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(self)
-        try data.write(to: MiloConfig.configPath)
+        try data.write(to: ClawConfig.configPath)
     }
 }

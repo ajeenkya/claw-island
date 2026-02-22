@@ -188,7 +188,7 @@ def cmd_get_selection(args: argparse.Namespace) -> Dict[str, Any]:
     """
     def action() -> Dict[str, Any]:
         # Create unique marker unlikely to appear in user's clipboard
-        marker = f"__MILO_SELECTION_MARKER_{uuid.uuid4()}__"
+        marker = f"__CLAW_SELECTION_MARKER_{uuid.uuid4()}__"
         set_clipboard_text(marker)
         time.sleep(0.03)  # Let clipboard settle
 

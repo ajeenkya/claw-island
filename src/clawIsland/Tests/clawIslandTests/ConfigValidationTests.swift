@@ -37,35 +37,35 @@ final class ConfigValidationTests: XCTestCase {
     // MARK: - validate() corrections
 
     func testValidate_InvalidTtsEngine_CorrectedToSystem() {
-        var config = MiloConfig.defaultConfig
+        var config = ClawConfig.defaultConfig
         config.ttsEngine = "invalid_engine"
         config.validate()
         XCTAssertEqual(config.ttsEngine, "system")
     }
 
     func testValidate_ValidTtsEngine_NotChanged() {
-        var config = MiloConfig.defaultConfig
+        var config = ClawConfig.defaultConfig
         config.ttsEngine = "kokoro"
         config.validate()
         XCTAssertEqual(config.ttsEngine, "kokoro")
     }
 
     func testValidate_EmptyHotkey_CorrectedToDefault() {
-        var config = MiloConfig.defaultConfig
+        var config = ClawConfig.defaultConfig
         config.hotkey = "   "
         config.validate()
         XCTAssertEqual(config.hotkey, "Option+Space")
     }
 
     func testValidate_ValidHotkey_NotChanged() {
-        var config = MiloConfig.defaultConfig
+        var config = ClawConfig.defaultConfig
         config.hotkey = "Cmd+Shift+F1"
         config.validate()
         XCTAssertEqual(config.hotkey, "Cmd+Shift+F1")
     }
 
     func testValidate_InvalidKokoroVoice_CorrectedToDefault() {
-        var config = MiloConfig.defaultConfig
+        var config = ClawConfig.defaultConfig
         config.ttsEngine = "kokoro"
         config.kokoroVoice = "unknown_voice"
         config.validate()
@@ -73,7 +73,7 @@ final class ConfigValidationTests: XCTestCase {
     }
 
     func testValidate_KokoroVoice_IgnoredWhenSystemEngine() {
-        var config = MiloConfig.defaultConfig
+        var config = ClawConfig.defaultConfig
         config.ttsEngine = "system"
         config.kokoroVoice = "unknown_voice"
         config.validate()
@@ -82,7 +82,7 @@ final class ConfigValidationTests: XCTestCase {
     }
 
     func testValidate_ValidConfig_NoChanges() {
-        var config = MiloConfig.defaultConfig
+        var config = ClawConfig.defaultConfig
         let originalEngine = config.ttsEngine
         let originalHotkey = config.hotkey
         config.validate()
@@ -93,8 +93,8 @@ final class ConfigValidationTests: XCTestCase {
     // MARK: - init() clamping
 
     func testInit_KokoroSpeedClamped_TooLow() {
-        var config = MiloConfig.defaultConfig
-        config = MiloConfig(
+        var config = ClawConfig.defaultConfig
+        config = ClawConfig(
             hotkey: config.hotkey, gatewayUrl: config.gatewayUrl,
             gatewayToken: nil, screenshotOnTrigger: true,
             ttsEngine: "system", ttsVoice: nil,
@@ -111,8 +111,8 @@ final class ConfigValidationTests: XCTestCase {
     }
 
     func testInit_KokoroSpeedClamped_TooHigh() {
-        var config = MiloConfig.defaultConfig
-        config = MiloConfig(
+        var config = ClawConfig.defaultConfig
+        config = ClawConfig(
             hotkey: config.hotkey, gatewayUrl: config.gatewayUrl,
             gatewayToken: nil, screenshotOnTrigger: true,
             ttsEngine: "system", ttsVoice: nil,
@@ -129,7 +129,7 @@ final class ConfigValidationTests: XCTestCase {
     }
 
     func testInit_MaxRecordingSecondsClamped() {
-        let config = MiloConfig(
+        let config = ClawConfig(
             hotkey: "Option+Space", gatewayUrl: "http://localhost:18789",
             gatewayToken: nil, screenshotOnTrigger: true,
             ttsEngine: "system", ttsVoice: nil,
@@ -149,7 +149,7 @@ final class ConfigValidationTests: XCTestCase {
 
     func testValidate_InvalidGatewayUrl_LogsWarning() {
         // Invalid URL should not crash, just log
-        var config = MiloConfig.defaultConfig
+        var config = ClawConfig.defaultConfig
         config.gatewayUrl = "not-a-url"
         config.validate()
         // gatewayUrl is not corrected (no safe default), just warned
@@ -157,7 +157,7 @@ final class ConfigValidationTests: XCTestCase {
     }
 
     func testValidate_ValidHttpsGatewayUrl_NoWarning() {
-        var config = MiloConfig.defaultConfig
+        var config = ClawConfig.defaultConfig
         config.gatewayUrl = "https://gateway.example.com"
         config.validate()
         XCTAssertEqual(config.gatewayUrl, "https://gateway.example.com")

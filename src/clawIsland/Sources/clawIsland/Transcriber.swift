@@ -13,12 +13,12 @@ import Speech
 /// - Note: Requires Speech Recognition permission in System Settings
 /// - Audio should be at 16kHz mono PCM format (as produced by AudioRecorder)
 class Transcriber {
-    private let config: MiloConfig
+    private let config: ClawConfig
 
     /// Initializes transcriber with configuration.
     ///
-    /// - Parameter config: MiloConfig instance with whisper model selection
-    init(config: MiloConfig) {
+    /// - Parameter config: ClawConfig instance with whisper model selection
+    init(config: ClawConfig) {
         self.config = config
     }
 
@@ -51,7 +51,7 @@ class Transcriber {
         ) else {
             throw TranscriberError.whisperNotFound
         }
-        miloLog("🧠 Using whisper-cli at \(whisperBin)")
+        clawLog("🧠 Using whisper-cli at \(whisperBin)")
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: whisperBin)

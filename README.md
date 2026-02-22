@@ -104,11 +104,11 @@ Copy [example-config.json](example-config.json) to get started with all availabl
 
 ## Optional Local Action Helpers
 
-If you explicitly set `"relayOnlyMode": false`, Milo can run local overlay helpers (for example selection rewrite and direct type/send shortcuts) before forwarding.
+If you explicitly set `"relayOnlyMode": false`, Claw Island can run local overlay helpers (for example selection rewrite and direct type/send shortcuts) before forwarding.
 
 Default behavior is relay-only, which keeps action execution responsibility inside OpenClaw.
 
-Bridge script (included in this repo): `desktop-actions/milo_bridge.py`
+Bridge script (included in this repo): `desktop-actions/claw_bridge.py`
 
 ## Open Source Notes
 

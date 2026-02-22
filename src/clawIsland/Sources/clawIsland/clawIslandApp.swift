@@ -4,7 +4,7 @@ import AVFoundation
 import ApplicationServices
 import QuartzCore
 
-func miloLog(_ msg: String) {
+func clawLog(_ msg: String) {
     let line = "[\(Date())] \(msg)\n"
     let logPath = NSHomeDirectory() + "/.openclaw/clawIsland.log"
     if let handle = FileHandle(forWritingAtPath: logPath) {
@@ -26,7 +26,7 @@ struct clawIslandApp: App {
     }
 }
 
-enum MiloState: Equatable, CustomStringConvertible {
+enum ClawState: Equatable, CustomStringConvertible {
     case idle
     case recording
     case processing
@@ -41,7 +41,7 @@ enum MiloState: Equatable, CustomStringConvertible {
         }
     }
     
-    static func == (lhs: MiloState, rhs: MiloState) -> Bool {
+    static func == (lhs: ClawState, rhs: ClawState) -> Bool {
         switch (lhs, rhs) {
         case (.idle, .idle), (.recording, .recording), (.processing, .processing):
             return true
@@ -65,7 +65,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeyManager = HotkeyManager()
     private var audioRecorder = AudioRecorder()
     private var liveTranscriber = LiveTranscriber()
-    private var config = MiloConfig.load()
+    private var config = ClawConfig.load()
     private var recordingTimer: Timer?
     private var hudUpdateTimer: Timer?
     
@@ -84,13 +84,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var openedAccessibilitySettingsThisLaunch = false
     private var transcript: String = ""
     private var pendingSelectionRewrite: PendingSelectionRewrite?
-    private let bridgeScriptPath = NSHomeDirectory() + "/.openclaw/workspace/skills/milo-desktop-actions/scripts/milo_bridge.py"
+    private let bridgeScriptPath = NSHomeDirectory() + "/.openclaw/workspace/skills/claw-island-desktop-actions/scripts/claw_bridge.py"
     private var committedLiveTranscript: String = ""
     private var currentLivePartial: String = ""
     private var lastLivePartialAt: Date?
     private let livePauseResetThreshold: TimeInterval = 0.65
     
-    private var state: MiloState = .idle {
+    private var state: ClawState = .idle {
         didSet {
             updateMenuBarIcon()
             updateHUD()
@@ -98,33 +98,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        miloLog("🚀 clawIsland launched")
+        clawLog("🚀 clawIsland launched")
         requestPermissions()
         setupMenuBar()
         setupHotkey()
-        miloLog("✅ Ready — press \(config.hotkey) to toggle recording")
+        clawLog("✅ Ready — press \(config.hotkey) to toggle recording")
     }
     
     private func requestPermissions() {
         requestAccessibilityPermission()
         
         AVCaptureDevice.requestAccess(for: .audio) { granted in
-            miloLog(granted ? "✅ Microphone authorized" : "❌ Microphone denied")
+            clawLog(granted ? "✅ Microphone authorized" : "❌ Microphone denied")
         }
         
         // Request speech recognition permission
         LiveTranscriber.requestAuthorization()
         
-        miloLog("🎤 Requested microphone + speech recognition permissions")
+        clawLog("🎤 Requested microphone + speech recognition permissions")
     }
     
     private func requestAccessibilityPermission() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         let trusted = AXIsProcessTrustedWithOptions(options)
         if trusted {
-            miloLog("✅ Accessibility authorized")
+            clawLog("✅ Accessibility authorized")
         } else {
-            miloLog("⚠️ Accessibility not granted — global hotkey will not work until enabled")
+            clawLog("⚠️ Accessibility not granted — global hotkey will not work until enabled")
             openAccessibilitySettingsIfNeeded()
         }
     }
@@ -135,7 +135,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else { return }
         NSWorkspace.shared.open(url)
-        miloLog("↗️ Opened System Settings → Privacy & Security → Accessibility")
+        clawLog("↗️ Opened System Settings → Privacy & Security → Accessibility")
     }
 
     // MARK: - Menu Bar
@@ -308,16 +308,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Toggle (configured hotkey press)
     
     private func handleToggle() {
-        miloLog("🔄 toggle, state: \(state)")
+        clawLog("🔄 toggle, state: \(state)")
         switch state {
         case .idle:
             startRecording()
         case .recording:
             stopRecording()
         case .processing:
-            miloLog("⏳ processing, ignoring")
+            clawLog("⏳ processing, ignoring")
         case .speaking:
-            miloLog("🔇 cancelling speech, going idle")
+            clawLog("🔇 cancelling speech, going idle")
             ttsEngine?.stop()
             state = .idle
         }
@@ -332,7 +332,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             try audioRecorder.startRecording()
             liveTranscriber.start()
             state = .recording
-            miloLog("🎙️ RECORDING — press \(config.hotkey) again to stop")
+            clawLog("🎙️ RECORDING — press \(config.hotkey) again to stop")
             
             // Update HUD with audio levels + live transcript ~30fps
             hudUpdateTimer = Timer.scheduledTimer(withTimeInterval: 0.033, repeats: true) { [weak self] _ in
@@ -355,7 +355,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         } catch {
-            miloLog("❌ Failed to start recording: \(error)")
+            clawLog("❌ Failed to start recording: \(error)")
             state = .idle
         }
     }
@@ -372,7 +372,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let liveText = finalizeLiveTranscript(with: liveTranscriber.stop())
         
         state = .processing
-        miloLog("⏳ Processing...")
+        clawLog("⏳ Processing...")
 
         Task {
             await processWithText(liveText)
@@ -741,7 +741,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let result = await runBridgeCommand(arguments: ["get_selection", "--json"]) else { return nil }
         if let ok = result["ok"] as? Bool, !ok {
             let reason = (result["error"] as? String) ?? "unknown error"
-            miloLog("⚠️ Bridge get_selection failed: \(reason)")
+            clawLog("⚠️ Bridge get_selection failed: \(reason)")
             return nil
         }
         
@@ -759,42 +759,42 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         let reason = (result["error"] as? String) ?? "unknown error"
-        miloLog("⚠️ Bridge replace_selection failed: \(reason)")
+        clawLog("⚠️ Bridge replace_selection failed: \(reason)")
         return false
     }
 
     private func processWithText(_ liveText: String) async {
         do {
             var text = liveText.trimmingCharacters(in: .whitespacesAndNewlines)
-            miloLog("📝 Live transcript result: '\(text)' (length: \(text.count))")
+            clawLog("📝 Live transcript result: '\(text)' (length: \(text.count))")
             
             // Fix #2: Only fall back to Whisper if live transcript is completely empty.
             // SFSpeechRecognizer is usually good enough — don't waste time on Whisper
             // for short but valid transcripts like "hi" or "yes".
             if text.isEmpty {
-                miloLog("⚠️ Live transcript empty, falling back to Whisper...")
+                clawLog("⚠️ Live transcript empty, falling back to Whisper...")
                 let transcriber = Transcriber(config: config)
                 text = try await transcriber.transcribe(audioPath: audioRecorder.outputPath)
-                miloLog("📝 Whisper fallback result: '\(text)' (length: \(text.count))")
+                clawLog("📝 Whisper fallback result: '\(text)' (length: \(text.count))")
             }
             
             if text.isEmpty || text == "[BLANK_AUDIO]" {
-                miloLog("⚠️ No speech detected")
+                clawLog("⚠️ No speech detected")
                 state = .idle
                 return
             }
-            miloLog("💬 Final transcript: \(text)")
+            clawLog("💬 Final transcript: \(text)")
             
             // Update HUD with final transcript
             transcript = text
             updateHUDContent(animated: false)
             
             let runtimeContext = desktopRuntimeContext()
-            miloLog("🖥️ Desktop context: \(runtimeContext)")
+            clawLog("🖥️ Desktop context: \(runtimeContext)")
             
             if pendingSelectionRewrite != nil, isCancelPendingRewrite(text) {
                 pendingSelectionRewrite = nil
-                miloLog("🧹 Pending rewrite cancelled")
+                clawLog("🧹 Pending rewrite cancelled")
                 await speakThenReturnToIdle("Cancelled the pending rewrite.")
                 return
             }
@@ -803,10 +803,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let applied = await applySelectionRewrite(pending.rewritten)
                 if applied {
                     pendingSelectionRewrite = nil
-                    miloLog("✅ Applied pending rewrite (\(pending.rewritten.count) chars)")
+                    clawLog("✅ Applied pending rewrite (\(pending.rewritten.count) chars)")
                     await speakThenReturnToIdle("Applied. I replaced the selected text.")
                 } else {
-                    miloLog("⚠️ Failed applying pending rewrite")
+                    clawLog("⚠️ Failed applying pending rewrite")
                     await speakThenReturnToIdle("I couldn't apply that edit. Keep the text selected and say apply again.")
                 }
                 return
@@ -814,18 +814,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
             if isSelectionRewriteRequest(text) {
                 guard let selection = await fetchSelectedTextFromBridge(), !selection.isEmpty else {
-                    miloLog("⚠️ Rewrite requested but no selected text was found")
+                    clawLog("⚠️ Rewrite requested but no selected text was found")
                     await speakThenReturnToIdle("I couldn't read selected text. Select the text first, then ask me to rewrite it.")
                     return
                 }
                 
-                miloLog("✍️ Selection rewrite requested: \(selection.count) chars")
+                clawLog("✍️ Selection rewrite requested: \(selection.count) chars")
                 let rewritePrompt = buildSelectionRewritePrompt(request: text, selection: selection)
                 let rewriteResponse = try await openClawClient.sendMessage(text: rewritePrompt, screenshotPath: nil, runtimeContext: runtimeContext)
                 let rewritten = extractRewriteText(from: rewriteResponse)
                 
                 guard !rewritten.isEmpty else {
-                    miloLog("⚠️ Rewrite response was empty")
+                    clawLog("⚠️ Rewrite response was empty")
                     await speakThenReturnToIdle("I couldn't generate a rewrite for that selection.")
                     return
                 }
@@ -834,10 +834,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     let applied = await applySelectionRewrite(rewritten)
                     if applied {
                         pendingSelectionRewrite = nil
-                        miloLog("✅ Direct rewrite applied (\(rewritten.count) chars)")
+                        clawLog("✅ Direct rewrite applied (\(rewritten.count) chars)")
                         await speakThenReturnToIdle("Done. I rewrote and replaced the selected text.")
                     } else {
-                        miloLog("⚠️ Direct rewrite apply failed")
+                        clawLog("⚠️ Direct rewrite apply failed")
                         await speakThenReturnToIdle("I generated the rewrite but couldn't apply it. Keep the text selected and say apply.")
                     }
                     return
@@ -850,19 +850,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 )
                 
                 let preview = "Preview: \(rewritten). Say apply to replace your selected text."
-                miloLog("📝 Rewrite preview ready (\(rewritten.count) chars)")
+                clawLog("📝 Rewrite preview ready (\(rewritten.count) chars)")
                 await speakThenReturnToIdle(preview)
                 return
             }
             
-            miloLog("📡 Sending with configured OpenClaw session routing: \(text)")
+            clawLog("📡 Sending with configured OpenClaw session routing: \(text)")
             let screenshotPath: String?
             if config.screenshotOnTrigger {
                 screenshotPath = await ScreenCapture.captureActiveWindow()
                 if let screenshotPath = screenshotPath {
-                    miloLog("📸 Screenshot captured: \(screenshotPath)")
+                    clawLog("📸 Screenshot captured: \(screenshotPath)")
                 } else {
-                    miloLog("⚠️ Screenshot capture failed; continuing without image context")
+                    clawLog("⚠️ Screenshot capture failed; continuing without image context")
                 }
             } else {
                 screenshotPath = nil
@@ -885,7 +885,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 case .sentence(let sentence):
                     if !streamedAnySentence {
                         let firstSentenceLatency = Date().timeIntervalSince(modelRequestStart)
-                        miloLog(String(format: "⚡ First sentence latency: %.2fs", firstSentenceLatency))
+                        clawLog(String(format: "⚡ First sentence latency: %.2fs", firstSentenceLatency))
                     }
                     streamedAnySentence = true
                     state = .speaking(sentence)
@@ -893,7 +893,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     
                 case .done(let full):
                     streamedFullResponse = full
-                    miloLog("✅ Stream done: \(full.count) chars")
+                    clawLog("✅ Stream done: \(full.count) chars")
                     
                 case .error(let err):
                     streamError = err
@@ -901,7 +901,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             
             if let streamError {
-                miloLog("⚠️ Stream failed, falling back to non-streaming: \(streamError.localizedDescription)")
+                clawLog("⚠️ Stream failed, falling back to non-streaming: \(streamError.localizedDescription)")
             }
             
             // Fallback: if nothing was spoken from stream, use non-streaming completion.
@@ -912,7 +912,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     fallbackResponse = streamedCandidate
                 } else {
                     fallbackResponse = try await openClawClient.sendMessage(text: text, screenshotPath: screenshotPath, runtimeContext: runtimeContext)
-                    miloLog("✅ Got fallback response: \(fallbackResponse.count) chars")
+                    clawLog("✅ Got fallback response: \(fallbackResponse.count) chars")
                 }
                 
                 let segments = speechSegments(from: fallbackResponse)
@@ -930,13 +930,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
             ttsEngine = nil
             if state != .idle {
-                miloLog("✅ Done")
+                clawLog("✅ Done")
                 state = .idle
             } else {
-                miloLog("✅ Done (cancelled)")
+                clawLog("✅ Done (cancelled)")
             }
         } catch {
-            miloLog("❌ Pipeline error: \(error)")
+            clawLog("❌ Pipeline error: \(error)")
             state = .idle
         }
     }
@@ -1002,7 +1002,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
             return Array(Set(voices)).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
         } catch {
-            miloLog("⚠️ Failed to get voices: \(error)")
+            clawLog("⚠️ Failed to get voices: \(error)")
             return ["Samantha (English (US))", "Daniel (English (UK))", "Fred (English (US))"]
         }
     }
@@ -1159,10 +1159,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         config.ttsEngine = selected
         do {
             try config.save()
-            miloLog("✅ TTS engine changed to: \(selected)")
+            clawLog("✅ TTS engine changed to: \(selected)")
             refreshSpeechMenus()
         } catch {
-            miloLog("❌ Failed to save TTS engine config: \(error)")
+            clawLog("❌ Failed to save TTS engine config: \(error)")
             return
         }
         
@@ -1202,7 +1202,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @objc private func downloadSystemVoice(_ sender: NSMenuItem) {
         let requestedVoice = sender.representedObject as? String ?? "selected voice"
-        miloLog("↗️ Opening voice downloads for \(requestedVoice)")
+        clawLog("↗️ Opening voice downloads for \(requestedVoice)")
         openVoiceDownloadSettings()
     }
     
@@ -1247,10 +1247,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         do {
             try config.save()
-            miloLog("✅ Voice changed to: \(voiceName)")
+            clawLog("✅ Voice changed to: \(voiceName)")
             refreshSpeechMenus()
         } catch {
-            miloLog("❌ Failed to save voice config: \(error)")
+            clawLog("❌ Failed to save voice config: \(error)")
         }
     }
     
@@ -1259,10 +1259,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         do {
             try config.save()
-            miloLog("✅ Kokoro voice changed to: \(voiceName)")
+            clawLog("✅ Kokoro voice changed to: \(voiceName)")
             refreshSpeechMenus()
         } catch {
-            miloLog("❌ Failed to save Kokoro voice config: \(error)")
+            clawLog("❌ Failed to save Kokoro voice config: \(error)")
         }
     }
     

@@ -2,7 +2,7 @@
 description: Safe local text actions for clawIsland using selected-text rewrite preview + explicit apply.
 ---
 
-# Milo Desktop Actions
+# Claw Island Desktop Actions
 
 Use this skill when the user asks to rewrite, polish, shorten, expand, or insert text in their current desktop app.
 
@@ -19,32 +19,32 @@ Never apply edits without explicit confirmation.
 ## Bridge Script
 
 Path:
-`/Users/shalmalisohoni/.openclaw/workspace/skills/milo-desktop-actions/scripts/milo_bridge.py`
+`/Users/shalmalisohoni/.openclaw/workspace/skills/claw-island-desktop-actions/scripts/claw_bridge.py`
 
 ### Commands
 
 1. Read desktop context:
 
 ```bash
-python3 /Users/shalmalisohoni/.openclaw/workspace/skills/milo-desktop-actions/scripts/milo_bridge.py get_context --json
+python3 /Users/shalmalisohoni/.openclaw/workspace/skills/claw-island-desktop-actions/scripts/claw_bridge.py get_context --json
 ```
 
 2. Get selected text from frontmost app:
 
 ```bash
-python3 /Users/shalmalisohoni/.openclaw/workspace/skills/milo-desktop-actions/scripts/milo_bridge.py get_selection --json
+python3 /Users/shalmalisohoni/.openclaw/workspace/skills/claw-island-desktop-actions/scripts/claw_bridge.py get_selection --json
 ```
 
 3. Replace selection with provided text:
 
 ```bash
-printf '%s' "$NEW_TEXT" | python3 /Users/shalmalisohoni/.openclaw/workspace/skills/milo-desktop-actions/scripts/milo_bridge.py replace_selection --stdin --json
+printf '%s' "$NEW_TEXT" | python3 /Users/shalmalisohoni/.openclaw/workspace/skills/claw-island-desktop-actions/scripts/claw_bridge.py replace_selection --stdin --json
 ```
 
 4. Insert text at cursor:
 
 ```bash
-printf '%s' "$NEW_TEXT" | python3 /Users/shalmalisohoni/.openclaw/workspace/skills/milo-desktop-actions/scripts/milo_bridge.py insert_text --stdin --json
+printf '%s' "$NEW_TEXT" | python3 /Users/shalmalisohoni/.openclaw/workspace/skills/claw-island-desktop-actions/scripts/claw_bridge.py insert_text --stdin --json
 ```
 
 ## Required Interaction Pattern

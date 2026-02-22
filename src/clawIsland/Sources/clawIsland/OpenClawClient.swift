@@ -24,10 +24,10 @@ enum StreamEvent {
 /// - Handles abbreviations (Dr., Mr., etc.) to avoid false sentence breaks
 /// - Flushes remaining text at stream end
 ///
-/// - Configuration: All routing, model, and buffer size settings come from MiloConfig
+/// - Configuration: All routing, model, and buffer size settings come from ClawConfig
 /// - Network: URLSession configured with keep-alive and 120-second timeout
 class OpenClawClient {
-    private let config: MiloConfig
+    private let config: ClawConfig
 
     /// Local conversation buffer — keeps the last N turns for multi-turn context.
     /// Format: [(role: "user"|"assistant", content: String)]
@@ -38,8 +38,8 @@ class OpenClawClient {
 
     /// Initializes the client with OpenClaw gateway configuration.
     ///
-    /// - Parameter config: MiloConfig instance with gateway URL, token, model, and buffer size
-    init(config: MiloConfig) {
+    /// - Parameter config: ClawConfig instance with gateway URL, token, model, and buffer size
+    init(config: ClawConfig) {
         self.config = config
         let sessionConfig = URLSessionConfiguration.default
         sessionConfig.httpMaximumConnectionsPerHost = 2
@@ -70,14 +70,14 @@ class OpenClawClient {
                 do {
                     let request = try buildRequest(text: text, screenshotPath: screenshotPath, runtimeContext: runtimeContext, stream: true)
                     
-                    miloLog("📡 Streaming to OpenClaw (model: \(config.model)): \(text)")
+                    clawLog("📡 Streaming to OpenClaw (model: \(config.model)): \(text)")
                     
                     let (bytes, response) = try await session.bytes(for: request)
                     
                     guard let httpResponse = response as? HTTPURLResponse,
                           (200...299).contains(httpResponse.statusCode) else {
                         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-                        miloLog("❌ Stream API error \(statusCode)")
+                        clawLog("❌ Stream API error \(statusCode)")
                         continuation.yield(.error(OpenClawError.apiError(statusCode: statusCode, body: "Stream error")))
                         continuation.finish()
                         return
@@ -110,7 +110,7 @@ class OpenClawClient {
                         while let sentence = extractSentence(from: &sentenceBuffer) {
                             let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
                             if !trimmed.isEmpty {
-                                miloLog("🔊 Sentence ready: \(trimmed.prefix(60))...")
+                                clawLog("🔊 Sentence ready: \(trimmed.prefix(60))...")
                                 continuation.yield(.sentence(trimmed))
                             }
                         }
@@ -119,7 +119,7 @@ class OpenClawClient {
                     // Flush any remaining text in the buffer
                     let remaining = sentenceBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !remaining.isEmpty {
-                        miloLog("🔊 Final fragment: \(remaining.prefix(60))...")
+                        clawLog("🔊 Final fragment: \(remaining.prefix(60))...")
                         continuation.yield(.sentence(remaining))
                     }
                     
@@ -127,12 +127,12 @@ class OpenClawClient {
                     appendToBuffer(role: "user", content: text)
                     appendToBuffer(role: "assistant", content: fullResponse)
                     
-                    miloLog("✅ Stream complete: \(fullResponse.count) chars")
+                    clawLog("✅ Stream complete: \(fullResponse.count) chars")
                     continuation.yield(.done(fullResponse))
                     continuation.finish()
                     
                 } catch {
-                    miloLog("❌ Stream error: \(error)")
+                    clawLog("❌ Stream error: \(error)")
                     continuation.yield(.error(error))
                     continuation.finish()
                 }
@@ -158,7 +158,7 @@ class OpenClawClient {
     func sendMessage(text: String, screenshotPath: String?, runtimeContext: String?) async throws -> String {
         let request = try buildRequest(text: text, screenshotPath: screenshotPath, runtimeContext: runtimeContext, stream: false)
         
-        miloLog("📡 Sending to OpenClaw (non-streaming): \(text)")
+        clawLog("📡 Sending to OpenClaw (non-streaming): \(text)")
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
@@ -187,7 +187,7 @@ class OpenClawClient {
     /// Note: Does not affect OpenClaw's server-side session history.
     func clearHistory() {
         conversationBuffer.removeAll()
-        miloLog("🧹 Conversation buffer cleared")
+        clawLog("🧹 Conversation buffer cleared")
     }
     
     // MARK: - Sentence Extraction
@@ -270,7 +270,7 @@ class OpenClawClient {
         if let sessionKey = config.sessionKey {
             body["user"] = sessionKey
             // Add debug info to help troubleshoot routing
-            miloLog("🔍 API Request - sessionKey: \(sessionKey), agentId: \(config.agentId), model: \(config.model)")
+            clawLog("🔍 API Request - sessionKey: \(sessionKey), agentId: \(config.agentId), model: \(config.model)")
         } else {
             body["user"] = "clawIsland"
         }

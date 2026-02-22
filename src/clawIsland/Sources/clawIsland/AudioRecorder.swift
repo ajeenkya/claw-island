@@ -12,7 +12,7 @@ import Foundation
 /// - Includes noise gate to suppress true silence below 0.03 threshold
 ///
 /// - Parameters: None. Configuration is via ffmpeg arguments (16kHz mono, pcm_s16le codec)
-/// - Output: WAV file written to `/tmp/milo-recording.wav`
+/// - Output: WAV file written to `/tmp/claw-island-recording.wav`
 /// - Requires: ffmpeg installed and in PATH
 @MainActor
 class AudioRecorder: ObservableObject {
@@ -26,7 +26,7 @@ class AudioRecorder: ObservableObject {
     private var levelTimer: Timer?
     private var lastFileOffset: UInt64 = 44 // Skip WAV header
     
-    let outputPath = "/tmp/milo-recording.wav"
+    let outputPath = "/tmp/claw-island-recording.wav"
 
     /// Starts recording audio from the default microphone.
     ///
@@ -72,7 +72,7 @@ class AudioRecorder: ObservableObject {
         self.process = proc
         self.isRecording = true
         self.lastFileOffset = 44
-        miloLog("🎤 ffmpeg recording (PID: \(proc.processIdentifier), bin: \(ffmpegPath))")
+        clawLog("🎤 ffmpeg recording (PID: \(proc.processIdentifier), bin: \(ffmpegPath))")
         
         // Start reading levels from the WAV file
         startLevelMonitor()
@@ -83,7 +83,7 @@ class AudioRecorder: ObservableObject {
     /// Terminates the ffmpeg process gracefully with a 3-second timeout.
     /// Resets the audio level to 0.0 and stops the level monitoring timer.
     ///
-    /// - Returns: The path to the recorded WAV file (`/tmp/milo-recording.wav`)
+    /// - Returns: The path to the recorded WAV file (`/tmp/claw-island-recording.wav`)
     /// - Note: The WAV file persists after this call; the caller is responsible for cleanup if needed
     func stopRecording() -> String {
         stopLevelMonitor()
@@ -97,7 +97,7 @@ class AudioRecorder: ObservableObject {
             if proc.isRunning {
                 proc.interrupt()
             }
-            miloLog("🛑 ffmpeg exit: \(proc.terminationStatus)")
+            clawLog("🛑 ffmpeg exit: \(proc.terminationStatus)")
         }
         process = nil
         isRecording = false
@@ -105,7 +105,7 @@ class AudioRecorder: ObservableObject {
         
         let attrs = try? FileManager.default.attributesOfItem(atPath: outputPath)
         let size = (attrs?[.size] as? Int) ?? 0
-        miloLog("📁 Recording file: \(size) bytes")
+        clawLog("📁 Recording file: \(size) bytes")
         
         return outputPath
     }

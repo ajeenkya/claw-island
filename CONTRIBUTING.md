@@ -53,7 +53,7 @@ Use clear, imperative commit messages, for example:
 
 When modifying config handling (Config.swift):
 
-1. **Update defaults** in `MiloConfig.defaultConfig`
+1. **Update defaults** in `ClawConfig.defaultConfig`
 2. **Update validation** in the `validate()` method if adding validation
 3. **Add tests** if validation logic changes
 4. **Update docs**:
@@ -197,7 +197,7 @@ Run `ls scripts/` to see all available scripts.
 
 App states: `idle` → `recording` → `processing` → `speaking` → `idle`
 
-See `MiloState` enum in `clawIslandApp.swift`.
+See `ClawState` enum in `clawIslandApp.swift`.
 
 ## References
 

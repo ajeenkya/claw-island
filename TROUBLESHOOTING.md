@@ -340,7 +340,7 @@ Common issues and solutions for Claw Island voice control.
 
 2. Verify bridge script exists:
    ```bash
-   ls -la desktop-actions/milo_bridge.py
+   ls -la desktop-actions/claw_bridge.py
    ```
 
 3. Check Accessibility permission:

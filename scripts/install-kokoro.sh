@@ -99,7 +99,7 @@ fi
 
 echo
 echo "🧪 Quick Kokoro sanity test..."
-OUT="/tmp/milo-kokoro-test.wav"
+OUT="/tmp/claw-island-kokoro-test.wav"
 "$PYTHON_BIN" "$KOKORO_SCRIPT_DST" \
   --text "Hello from Kokoro local voice." \
   --voice "af_heart" \

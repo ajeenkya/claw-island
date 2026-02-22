@@ -7,7 +7,7 @@ import Cocoa
 /// 1. **Kokoro**: Local, open-source speech synthesis (requires Python venv + Kokoro library)
 /// 2. **System**: macOS native voices via `/usr/bin/say` (always available)
 ///
-/// Voice selection and engine preference are configured via MiloConfig.
+/// Voice selection and engine preference are configured via ClawConfig.
 /// Automatically falls back to system voices if Kokoro is unavailable.
 /// Supports cancellation mid-speech via the `stop()` method.
 ///
@@ -19,15 +19,15 @@ class TTSEngine {
     /// Whether speech has been cancelled; checked before starting speech
     private var cancelled = false
     /// Configuration with TTS engine and voice preferences
-    private let config: MiloConfig
+    private let config: ClawConfig
 
     /// Whether speech playback has been cancelled
     var isCancelled: Bool { cancelled }
 
     /// Initializes TTS engine with voice and engine configuration.
     ///
-    /// - Parameter config: MiloConfig instance with ttsEngine and voice settings
-    init(config: MiloConfig) {
+    /// - Parameter config: ClawConfig instance with ttsEngine and voice settings
+    init(config: ClawConfig) {
         self.config = config
     }
 
@@ -47,15 +47,15 @@ class TTSEngine {
         guard !cleaned.isEmpty else { return }
 
         if config.ttsEngine.lowercased() == "kokoro" {
-            miloLog("🗣️ TTS engine: kokoro (\(config.kokoroVoice))")
+            clawLog("🗣️ TTS engine: kokoro (\(config.kokoroVoice))")
             let ok = await speakWithKokoro(cleaned)
             if ok || cancelled {
                 return
             }
-            miloLog("⚠️ Kokoro TTS unavailable; falling back to system voice")
+            clawLog("⚠️ Kokoro TTS unavailable; falling back to system voice")
         }
 
-        miloLog("🗣️ TTS engine: system (\(config.ttsVoice ?? "default"))")
+        clawLog("🗣️ TTS engine: system (\(config.ttsVoice ?? "default"))")
         await speakWithSystem(cleaned)
     }
     
@@ -85,7 +85,7 @@ class TTSEngine {
             do {
                 try process.run()
             } catch {
-                miloLog("⚠️ TTS error: \(error)")
+                clawLog("⚠️ TTS error: \(error)")
                 continuation.resume()
             }
         }
@@ -95,16 +95,16 @@ class TTSEngine {
         guard !cancelled else { return false }
         
         guard let pythonPath = resolveKokoroPythonPath() else {
-            miloLog("⚠️ Kokoro python runtime not found")
+            clawLog("⚠️ Kokoro python runtime not found")
             return false
         }
         
         guard let scriptPath = resolveKokoroScriptPath() else {
-            miloLog("⚠️ Kokoro script not found")
+            clawLog("⚠️ Kokoro script not found")
             return false
         }
         
-        let outputPath = "/tmp/milo-kokoro-\(UUID().uuidString).wav"
+        let outputPath = "/tmp/claw-island-kokoro-\(UUID().uuidString).wav"
         let synthesisSucceeded = await runProcess(
             executable: pythonPath,
             arguments: [
@@ -153,9 +153,9 @@ class TTSEngine {
                     let err = String(data: errData, encoding: .utf8)?
                         .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                     if !err.isEmpty {
-                        miloLog("⚠️ \(label) failed: \(err.prefix(180))")
+                        clawLog("⚠️ \(label) failed: \(err.prefix(180))")
                     } else {
-                        miloLog("⚠️ \(label) failed with status \(proc.terminationStatus)")
+                        clawLog("⚠️ \(label) failed with status \(proc.terminationStatus)")
                     }
                 }
                 continuation.resume(returning: proc.terminationStatus == 0)
@@ -164,7 +164,7 @@ class TTSEngine {
             do {
                 try process.run()
             } catch {
-                miloLog("⚠️ \(label) launch error: \(error)")
+                clawLog("⚠️ \(label) launch error: \(error)")
                 continuation.resume(returning: false)
             }
         }

@@ -93,10 +93,10 @@ class HotkeyManager {
             triggerStyle = parsed
         } else {
             triggerStyle = .functionOnly
-            miloLog("⚠️ Invalid hotkey '\(hotkey)', falling back to fn")
+            clawLog("⚠️ Invalid hotkey '\(hotkey)', falling back to fn")
         }
         
-        miloLog("⌨️ Registering hotkey monitors for \(hotkeyDescription())")
+        clawLog("⌨️ Registering hotkey monitors for \(hotkeyDescription())")
         
         globalFlagsMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
             self?.handleFlagsChanged(event)
@@ -116,7 +116,7 @@ class HotkeyManager {
             return event
         }
         
-        miloLog("  ✅ Hotkey monitors registered")
+        clawLog("  ✅ Hotkey monitors registered")
     }
 
     private func handleFlagsChanged(_ event: NSEvent) {
@@ -131,7 +131,7 @@ class HotkeyManager {
         
         if hasFn && !hasOtherModifiers && !fnIsDown {
             fnIsDown = true
-            miloLog("⌨️ fn flagsChanged keyCode=\(event.keyCode) raw=\(raw)")
+            clawLog("⌨️ fn flagsChanged keyCode=\(event.keyCode) raw=\(raw)")
             trigger(reason: "fn")
         } else if !hasFn {
             fnIsDown = false
@@ -153,7 +153,7 @@ class HotkeyManager {
         let now = Date()
         guard now.timeIntervalSince(lastTriggerTime) > debounceSeconds else { return }
         lastTriggerTime = now
-        miloLog("🎯 Hotkey trigger: \(reason)")
+        clawLog("🎯 Hotkey trigger: \(reason)")
         
         DispatchQueue.main.async { [weak self] in
             self?.onToggle?()
