@@ -56,7 +56,11 @@ final class SanitizeTests: XCTestCase {
 
     func testStripsBulletPoints() {
         XCTAssertEqual(OpenClawClient.sanitize("- First item\n- Second item"), "First item\nSecond item")
-        XCTAssertEqual(OpenClawClient.sanitize("* First\n* Second"), "First\nSecond")
+        // * bullets: the bullet regex strips "* " at line start, then brute-force strips remaining *
+        let starBulletResult = OpenClawClient.sanitize("* First\n* Second")
+        XCTAssertTrue(starBulletResult.contains("First"))
+        XCTAssertTrue(starBulletResult.contains("Second"))
+        XCTAssertFalse(starBulletResult.contains("*"))
     }
 
     func testStripsNumberedLists() {
@@ -111,6 +115,30 @@ final class SanitizeTests: XCTestCase {
         // Hourglass U+23F3 and fast-forward U+23E9 are in the 0x2300-0x23FF range
         XCTAssertEqual(OpenClawClient.sanitize("Loading ⏳ please wait"), "Loading please wait")
         XCTAssertEqual(OpenClawClient.sanitize("Play ⏩ next"), "Play next")
+    }
+
+    // MARK: - Streaming partial markdown (the real-world bug)
+
+    func testStripsPartialBoldFromStreaming() {
+        // When streaming splits "**Yes, it's working!**" across chunks,
+        // one sentence gets "**Yes, it's working!" and another gets "**"
+        XCTAssertEqual(OpenClawClient.sanitize("**Yes, it's working!"), "Yes, it's working!")
+        XCTAssertEqual(OpenClawClient.sanitize("**"), "")
+    }
+
+    func testStripsTrailingAsterisks() {
+        XCTAssertEqual(OpenClawClient.sanitize("Some text**"), "Some text")
+    }
+
+    func testStripsLoneAsterisks() {
+        // After ** removal, lone * from partial *italic* should also go
+        XCTAssertEqual(OpenClawClient.sanitize("*Important point"), "Important point")
+        XCTAssertEqual(OpenClawClient.sanitize("Check this out*"), "Check this out")
+    }
+
+    func testStripsLoneBackticks() {
+        XCTAssertEqual(OpenClawClient.sanitize("Run the `command"), "Run the command")
+        XCTAssertEqual(OpenClawClient.sanitize("some code`"), "some code")
     }
 
     // MARK: - Edge cases

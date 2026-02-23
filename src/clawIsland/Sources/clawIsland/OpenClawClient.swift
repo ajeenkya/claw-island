@@ -381,6 +381,25 @@ class OpenClawClient {
             in: s, range: NSRange(s.startIndex..., in: s), withTemplate: ""
         )
 
+        // Nuclear option: brute-force strip leftover markdown characters.
+        // Regex-based stripping misses partial markdown from streaming (e.g., "**text"
+        // arrives in one chunk, "**" arrives in the next). These characters should
+        // NEVER appear in spoken TTS output, so just remove them unconditionally.
+        s = s.replacingOccurrences(of: "**", with: "")
+        s = s.replacingOccurrences(of: "__", with: "")
+        s = s.replacingOccurrences(of: "~~", with: "")
+        // Strip lone asterisks that aren't contractions or multiplication
+        // (after ** is already removed, any remaining * is markdown noise)
+        s = s.replacingOccurrences(of: "*", with: "")
+        // Strip heading markers that survived regex (e.g., mid-sentence #)
+        if let loneHashRegex = try? NSRegularExpression(pattern: #"(?<!\w)#{1,6}(?!\w)"#) {
+            s = loneHashRegex.stringByReplacingMatches(
+                in: s, range: NSRange(s.startIndex..., in: s), withTemplate: ""
+            )
+        }
+        // Strip any remaining backticks
+        s = s.replacingOccurrences(of: "`", with: "")
+
         // Strip emojis — remove characters in common emoji Unicode ranges.
         // BMP emoji ranges are checked BEFORE the fast-path allow,
         // otherwise the allow threshold would make them unreachable.
@@ -409,18 +428,18 @@ class OpenClawClient {
     // MARK: - Voice Mode Hint
     
     private let voiceSystemHint = """
-    You are responding via a voice overlay app (clawIsland). The user spoke to you and will hear \
-    your response via TTS. This is a quick-action overlay, not a chat window.
+    You are a voice assistant responding through a TTS overlay. Your output is spoken aloud, not displayed as text.
 
-    Response rules:
-    - Keep it SHORT. 1-2 sentences for actions, 2-3 for questions. No essays.
-    - Talk like a person. Use natural, casual speech. No filler phrases.
-    - NEVER use emojis or emoji characters of any kind.
-    - NEVER use markdown: no **, *, #, ##, ```, -, bullet points, or numbered lists.
-    - NEVER use code blocks or formatted text. Just plain spoken words.
-    - When doing an action, confirm briefly ("Done", "Got it", "Set") — don't explain the action back.
-    - Don't narrate what you're doing ("Let me check...", "I'll look into...") — just do it and answer.
-    - Sound human, not robotic. Contractions are good. Vary your phrasing.
+    CRITICAL OUTPUT RULES — VIOLATING THESE RUINS THE USER EXPERIENCE:
+    1. PLAIN TEXT ONLY. No asterisks (*), no hashes (#), no backticks (`), no underscores for emphasis, \
+    no markdown of any kind. Your output goes directly to a speech synthesizer. Markdown characters \
+    will be spoken aloud as "asterisk" which sounds broken and stupid.
+    2. NO LISTS. No bullet points, no numbered lists, no dashes at start of lines. Speak in sentences.
+    3. NO EMOJIS. Ever. They are unpronounceable.
+    4. KEEP IT SHORT. This is a voice overlay, not a chat window. 1-3 sentences max. \
+    If the user asks a complex question, give the key point first, then offer to elaborate.
+    5. SOUND HUMAN. Use contractions. Vary phrasing. No filler ("Let me check", "Sure thing"). \
+    Just answer directly.
 
     IMPORTANT: You should have access to your full memory including information about AJ's family \
     (Veda and Mithila), preferences, and conversation history. If you don't recognize AJ or don't \
