@@ -2,9 +2,9 @@ import Foundation
 
 /// Events emitted during streaming
 enum StreamEvent {
-    /// A complete sentence ready for TTS
+    /// A complete sentence ready for TTS (sanitized — markdown and emojis stripped)
     case sentence(String)
-    /// Stream finished — full accumulated response
+    /// Stream finished — full accumulated raw response (NOT sanitized, used for conversation buffer)
     case done(String)
     /// Error during streaming
     case error(Error)
@@ -108,16 +108,16 @@ class OpenClawClient {
                         
                         // Check for sentence boundaries and yield complete sentences
                         while let sentence = extractSentence(from: &sentenceBuffer) {
-                            let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
-                            if !trimmed.isEmpty {
-                                clawLog("🔊 Sentence ready: \(trimmed.prefix(60))...")
-                                continuation.yield(.sentence(trimmed))
+                            let sanitized = OpenClawClient.sanitize(sentence)
+                            if !sanitized.isEmpty {
+                                clawLog("🔊 Sentence ready: \(sanitized.prefix(60))...")
+                                continuation.yield(.sentence(sanitized))
                             }
                         }
                     }
                     
                     // Flush any remaining text in the buffer
-                    let remaining = sentenceBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let remaining = OpenClawClient.sanitize(sentenceBuffer)
                     if !remaining.isEmpty {
                         clawLog("🔊 Final fragment: \(remaining.prefix(60))...")
                         continuation.yield(.sentence(remaining))
@@ -175,10 +175,10 @@ class OpenClawClient {
            let responseContent = message["content"] as? String {
             appendToBuffer(role: "user", content: text)
             appendToBuffer(role: "assistant", content: responseContent)
-            return responseContent
+            return OpenClawClient.sanitize(responseContent)
         }
 
-        return String(data: data, encoding: .utf8) ?? "No response"
+        return OpenClawClient.sanitize(String(data: data, encoding: .utf8) ?? "No response")
     }
     
     /// Clears the local conversation history buffer.
@@ -303,14 +303,125 @@ class OpenClawClient {
         }
     }
     
+    // MARK: - Response Sanitizer
+
+    // Cached regex objects — compiled once, reused across all sanitize() calls.
+    // Order matters for markdown: ** before *, __ before _ to avoid partial matches.
+    private static let markdownRegexes: [(NSRegularExpression, String)] = {
+        let patterns: [(String, String)] = [
+            (#"\*\*(.+?)\*\*"#, "$1"),                  // **bold**
+            (#"__(.+?)__"#, "$1"),                       // __bold__
+            (#"\*(.+?)\*"#, "$1"),                       // *italic*
+            (#"(?<=\s|^)_(.+?)_(?=\s|$|[.,!?])"#, "$1"), // _italic_ (boundary-aware to avoid mangling file_names)
+            (#"~~(.+?)~~"#, "$1"),                       // ~~strikethrough~~
+            (#"`([^`]+)`"#, "$1"),                       // `inline code`
+        ]
+        return patterns.compactMap { (pattern, template) in
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+            return (regex, template)
+        }
+    }()
+    private static let headingRegex = try! NSRegularExpression(pattern: #"^#{1,6}\s+"#, options: .anchorsMatchLines)
+    private static let bulletRegex = try! NSRegularExpression(pattern: #"^[\-\*]\s+"#, options: .anchorsMatchLines)
+    private static let numberedListRegex = try! NSRegularExpression(pattern: #"^\d+\.\s+"#, options: .anchorsMatchLines)
+    private static let codeFenceRegex = try! NSRegularExpression(pattern: #"```\w*\n?"#)
+    private static let multiSpaceRegex = try! NSRegularExpression(pattern: #" {2,}"#)
+
+    /// Blocked emoji Unicode ranges. BMP ranges come first so they are checked
+    /// before the fast-path allow at 0x2FFF.
+    private static let blockedEmojiRanges: [ClosedRange<UInt32>] = [
+        // BMP emoji ranges (must be checked before the 0x2FFF fast-path)
+        0x2300...0x23FF,    // Misc technical (hourglass, eject, media controls)
+        0x2600...0x27BF,    // Misc symbols (sun, heart, check, warning, etc.)
+        0x2934...0x2935,    // Curved arrows
+        0x2B05...0x2B07,    // Directional arrows
+        0x2B1B...0x2B1C,    // Square symbols
+        0x2B50...0x2B55,    // Star, circles
+        // Supplementary plane emoji ranges
+        0x1F1E0...0x1F1FF,  // Flags
+        0x1F300...0x1F5FF,  // Misc symbols & pictographs
+        0x1F600...0x1F64F,  // Emoticons
+        0x1F680...0x1F6FF,  // Transport & map
+        0x1F3FB...0x1F3FF,  // Skin tone modifiers
+        0x1F900...0x1F9FF,  // Supplemental symbols
+        0x1FA00...0x1FA6F,  // Chess symbols
+        0x1FA70...0x1FAFF,  // Symbols extended-A
+        0xE0020...0xE007F,  // Tag characters (flag subregions)
+    ]
+
+    /// Strips markdown formatting and emojis from LLM output so TTS reads clean text.
+    static func sanitize(_ text: String) -> String {
+        var s = text
+
+        // Strip code fences first (including language tags like ```swift) —
+        // before inline code regex to avoid partial backtick matches
+        s = codeFenceRegex.stringByReplacingMatches(
+            in: s, range: NSRange(s.startIndex..., in: s), withTemplate: ""
+        )
+
+        // Strip markdown inline formatting
+        for (regex, template) in markdownRegexes {
+            s = regex.stringByReplacingMatches(
+                in: s, range: NSRange(s.startIndex..., in: s), withTemplate: template
+            )
+        }
+
+        // Strip heading markers: ### Heading → Heading
+        s = headingRegex.stringByReplacingMatches(
+            in: s, range: NSRange(s.startIndex..., in: s), withTemplate: ""
+        )
+
+        // Strip markdown bullet points at line start: "- item" or "* item" → "item"
+        s = bulletRegex.stringByReplacingMatches(
+            in: s, range: NSRange(s.startIndex..., in: s), withTemplate: ""
+        )
+
+        // Strip numbered list markers: "1. item" → "item"
+        s = numberedListRegex.stringByReplacingMatches(
+            in: s, range: NSRange(s.startIndex..., in: s), withTemplate: ""
+        )
+
+        // Strip emojis — remove characters in common emoji Unicode ranges.
+        // BMP emoji ranges are checked BEFORE the fast-path allow,
+        // otherwise the allow threshold would make them unreachable.
+        let filtered = s.unicodeScalars.filter { scalar in
+            let v = scalar.value
+            // Block variation selectors and joiners (BMP, checked before fast-path)
+            if (0xFE00...0xFE0F).contains(v) { return false }    // Variation selectors
+            if v == 0x200D { return false }                       // Zero-width joiner (emoji combiner)
+            if v == 0x20E3 { return false }                       // Combining enclosing keycap
+            // Check all blocked emoji ranges
+            for range in blockedEmojiRanges {
+                if range.contains(v) { return false }
+            }
+            return true
+        }
+        s = String(filtered)
+
+        // Collapse multiple spaces into one (single-pass regex)
+        s = multiSpaceRegex.stringByReplacingMatches(
+            in: s, range: NSRange(s.startIndex..., in: s), withTemplate: " "
+        )
+
+        return s.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     // MARK: - Voice Mode Hint
     
     private let voiceSystemHint = """
     You are responding via a voice overlay app (clawIsland). The user spoke to you and will hear \
-    your response via TTS. Keep responses concise and conversational — aim for 1-3 sentences unless \
-    the question requires more detail. Don't use markdown formatting, bullet points, or code blocks \
-    — just natural speech. Don't narrate tool usage ("Let me check...") — just do it and give the answer.
-    
+    your response via TTS. This is a quick-action overlay, not a chat window.
+
+    Response rules:
+    - Keep it SHORT. 1-2 sentences for actions, 2-3 for questions. No essays.
+    - Talk like a person. Use natural, casual speech. No filler phrases.
+    - NEVER use emojis or emoji characters of any kind.
+    - NEVER use markdown: no **, *, #, ##, ```, -, bullet points, or numbered lists.
+    - NEVER use code blocks or formatted text. Just plain spoken words.
+    - When doing an action, confirm briefly ("Done", "Got it", "Set") — don't explain the action back.
+    - Don't narrate what you're doing ("Let me check...", "I'll look into...") — just do it and answer.
+    - Sound human, not robotic. Contractions are good. Vary your phrasing.
+
     IMPORTANT: You should have access to your full memory including information about AJ's family \
     (Veda and Mithila), preferences, and conversation history. If you don't recognize AJ or don't \
     have access to this information, something is wrong with the session routing.
