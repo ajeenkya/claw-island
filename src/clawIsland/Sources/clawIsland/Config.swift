@@ -100,7 +100,7 @@ struct ClawConfig: Codable {
         model: "openclaw",
         conversationBufferSize: 10,
         agentId: "main",
-        maxTokens: 512,
+        maxTokens: 200,
         relayOnlyMode: true,
         adaptiveMaxTokensEnabled: true,
         adaptiveMaxTokensFloor: 128,

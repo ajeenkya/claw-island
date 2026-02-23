@@ -226,6 +226,23 @@ class OpenClawClient {
     
     // MARK: - Request Building
     
+    /// Compute token budget based on utterance length/complexity.
+    /// Short queries ("what time is it") get fewer tokens; longer/complex ones get more.
+    private func effectiveMaxTokens(for text: String) -> Int {
+        guard config.adaptiveMaxTokensEnabled else { return config.maxTokens }
+
+        let words = text.split(whereSeparator: \.isWhitespace).count
+        let tokens: Int
+        switch words {
+        case 0...3:   tokens = config.adaptiveMaxTokensFloor   // "what time is it" → ~128
+        case 4...8:   tokens = min(200, config.maxTokens)       // moderate question → 200
+        case 9...15:  tokens = min(300, config.maxTokens)       // detailed question → 300
+        default:      tokens = config.maxTokens                  // long/complex → full budget
+        }
+        clawLog("📏 Adaptive tokens: \(words) words → \(tokens) max_tokens (ceiling: \(config.maxTokens))")
+        return tokens
+    }
+
     private func buildRequest(text: String, screenshotPath: String?, runtimeContext: String?, stream: Bool) throws -> URLRequest {
         let urlString = "\(config.gatewayUrl)/v1/chat/completions"
         guard let url = URL(string: urlString) else {
@@ -262,7 +279,7 @@ class OpenClawClient {
         var body: [String: Any] = [
             "model": config.model,
             "messages": messages,
-            "max_tokens": config.maxTokens,
+            "max_tokens": effectiveMaxTokens(for: text),
             "stream": stream
         ]
         
