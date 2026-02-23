@@ -72,6 +72,7 @@ final class HUDModel: ObservableObject {
     @Published var transcript: String = ""
     @Published var audioLevel: Float = 0
     @Published var showContent: Bool = true
+    /// Set once at launch from config.agentId, before the HUD is shown.
     var agentName: String = "main"
 }
 
@@ -129,9 +130,7 @@ struct RecordingHUD: View {
                 .frame(width: isExpanded ? expandedWidth : notchWidth)
                 .frame(minHeight: notchHeight)
                 .fixedSize(horizontal: false, vertical: true)
-                .clipShape(IslandShellShape(bottomRadius: shellRadius))
-                .shadow(color: .black.opacity(isExpanded ? 0.44 : 0.22), radius: isExpanded ? 20 : 10, y: isExpanded ? 10 : 5)
-                .compositingGroup()
+                .clipShape(UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: shellRadius, bottomTrailingRadius: shellRadius, topTrailingRadius: 0))
         }
         .onAppear {
             withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
@@ -258,38 +257,6 @@ struct RecordingHUD: View {
     }
 }
 
-// MARK: - Island Shell Shape
-
-struct IslandShellShape: Shape {
-    var bottomRadius: CGFloat
-    
-    var animatableData: CGFloat {
-        get { bottomRadius }
-        set { bottomRadius = newValue }
-    }
-    
-    func path(in rect: CGRect) -> Path {
-        let r = min(bottomRadius, rect.height / 2, rect.width / 2)
-        var path = Path()
-        
-        // Flat top edge so the overlay merges with the notch/screen edge.
-        path.move(to: CGPoint(x: 0, y: 0))
-        path.addLine(to: CGPoint(x: rect.width, y: 0))
-        path.addLine(to: CGPoint(x: rect.width, y: rect.height - r))
-        path.addQuadCurve(
-            to: CGPoint(x: rect.width - r, y: rect.height),
-            control: CGPoint(x: rect.width, y: rect.height)
-        )
-        path.addLine(to: CGPoint(x: r, y: rect.height))
-        path.addQuadCurve(
-            to: CGPoint(x: 0, y: rect.height - r),
-            control: CGPoint(x: 0, y: rect.height)
-        )
-        path.closeSubpath()
-        return path
-    }
-}
-
 // MARK: - Layered Backdrop
 
 private struct DynamicBackdrop: View {
@@ -356,6 +323,7 @@ private struct DynamicBackdrop: View {
 
 // MARK: - Audio Visualizer (flowing waveform)
 
+/// Defines a single sine-wave layer in the visualizer (frequency, phase offset, opacity, stroke width).
 private struct WaveLayer {
     let freq: Double
     let offset: Double
@@ -363,13 +331,27 @@ private struct WaveLayer {
     let width: CGFloat
 }
 
-struct AudioVisualizerView: View {
+/// Flowing waveform that responds to real-time audio level.
+///
+/// Draws 3 layered sine curves on a Canvas. Each frame, `advancePhase` smooths
+/// the incoming `level` (fast attack / slow decay) and advances a travelling-wave
+/// phase. `drawWaves` renders the layers with edge-fade and a faint center glow.
+private struct AudioVisualizerView: View {
     let level: Float
 
     @State private var phase: Double = 0
     @State private var smoothLevel: CGFloat = 0.0
 
     private let timer = Timer.publish(every: 0.025, on: .main, in: .common).autoconnect()
+
+    // Tuning constants for the waveform response curve.
+    private let gainMultiplier: CGFloat = 1.974
+    private let idleMinimum: CGFloat = 0.08
+    private let attackRate: CGFloat = 0.4
+    private let decayRate: CGFloat = 0.08
+    private let amplitudeScale: Double = 0.42
+    /// Wrap threshold to prevent floating-point precision loss over long sessions.
+    private let phaseWrap: Double = .pi * 2 * 1000
 
     private let layers: [WaveLayer] = [
         WaveLayer(freq: 1.0, offset: 0.0, opacity: 0.9,  width: 2.0),
@@ -386,27 +368,29 @@ struct AudioVisualizerView: View {
         }
     }
 
+    /// Advances the wave phase and smooths the audio level with asymmetric attack/decay.
     private func advancePhase() {
         phase += 0.06
-        let target = CGFloat(min(max(level * 1.645, 0.08), 1.0))
+        if phase > phaseWrap { phase -= phaseWrap }
+        let target = min(max(CGFloat(level) * gainMultiplier, idleMinimum), 1.0)
         if target > smoothLevel {
-            smoothLevel += (target - smoothLevel) * 0.4
+            smoothLevel += (target - smoothLevel) * attackRate
         } else {
-            smoothLevel += (target - smoothLevel) * 0.08
+            smoothLevel += (target - smoothLevel) * decayRate
         }
     }
 
+    /// Renders all wave layers and a center glow line onto the Canvas.
     private func drawWaves(context: GraphicsContext, size: CGSize) {
         let midY: CGFloat = size.height / 2
         let steps: Int = Int(size.width)
-        let amp: Double = Double(smoothLevel) * Double(size.height) * 0.42
+        let amp: Double = Double(smoothLevel) * Double(size.height) * amplitudeScale
 
         for layer in layers {
             let path = buildWavePath(steps: steps, midY: midY, amp: amp, layer: layer)
             context.stroke(path, with: .color(OC.teal.opacity(layer.opacity)), lineWidth: layer.width)
         }
 
-        // Faint center glow line
         let glowOpacity: Double = 0.12 + Double(smoothLevel) * 0.08
         var centerLine = Path()
         centerLine.move(to: CGPoint(x: 0, y: midY))
@@ -414,6 +398,7 @@ struct AudioVisualizerView: View {
         context.stroke(centerLine, with: .color(OC.teal.opacity(glowOpacity)), lineWidth: 0.5)
     }
 
+    /// Builds a sine-wave path by compositing two frequencies with edge-fade envelope.
     private func buildWavePath(steps: Int, midY: CGFloat, amp: Double, layer: WaveLayer) -> Path {
         var path = Path()
         let stepsD = Double(steps)
@@ -435,24 +420,6 @@ struct AudioVisualizerView: View {
             }
         }
         return path
-    }
-}
-
-// MARK: - Mini Level Dots (top-right indicator)
-
-struct MiniLevelDots: View {
-    let level: Float
-    private let dotCount = 5
-    
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(0..<dotCount, id: \.self) { i in
-                let threshold = Float(i) / Float(dotCount)
-                Circle()
-                    .fill(level > threshold ? OC.teal : OC.teal.opacity(0.15))
-                    .frame(width: 4, height: 4)
-            }
-        }
     }
 }
 

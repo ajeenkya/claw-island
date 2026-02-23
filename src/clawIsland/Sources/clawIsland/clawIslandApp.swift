@@ -99,7 +99,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         clawLog("🚀 clawIsland launched")
-        hudModel.agentName = config.agentId
+        hudModel.agentName = config.agentId.isEmpty ? "main" : config.agentId
         requestPermissions()
         setupMenuBar()
         setupHotkey()
