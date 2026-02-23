@@ -72,6 +72,7 @@ final class HUDModel: ObservableObject {
     @Published var transcript: String = ""
     @Published var audioLevel: Float = 0
     @Published var showContent: Bool = true
+    /// Set once at launch from config.agentId, before the HUD is shown.
     var agentName: String = "main"
 }
 
@@ -129,9 +130,7 @@ struct RecordingHUD: View {
                 .frame(width: isExpanded ? expandedWidth : notchWidth)
                 .frame(minHeight: notchHeight)
                 .fixedSize(horizontal: false, vertical: true)
-                .clipShape(IslandShellShape(bottomRadius: shellRadius))
-                .shadow(color: .black.opacity(isExpanded ? 0.44 : 0.22), radius: isExpanded ? 20 : 10, y: isExpanded ? 10 : 5)
-                .compositingGroup()
+                .clipShape(UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: shellRadius, bottomTrailingRadius: shellRadius, topTrailingRadius: 0))
         }
         .onAppear {
             withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
@@ -388,7 +387,7 @@ struct AudioVisualizerView: View {
 
     private func advancePhase() {
         phase += 0.06
-        let target = CGFloat(min(max(level * 1.645, 0.08), 1.0))
+        let target = CGFloat(min(max(level * 1.974, 0.08), 1.0))
         if target > smoothLevel {
             smoothLevel += (target - smoothLevel) * 0.4
         } else {
@@ -435,24 +434,6 @@ struct AudioVisualizerView: View {
             }
         }
         return path
-    }
-}
-
-// MARK: - Mini Level Dots (top-right indicator)
-
-struct MiniLevelDots: View {
-    let level: Float
-    private let dotCount = 5
-    
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(0..<dotCount, id: \.self) { i in
-                let threshold = Float(i) / Float(dotCount)
-                Circle()
-                    .fill(level > threshold ? OC.teal : OC.teal.opacity(0.15))
-                    .frame(width: 4, height: 4)
-            }
-        }
     }
 }
 
